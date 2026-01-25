@@ -3,15 +3,24 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "react-native run-android",
+    "android": "react-native run-android --active-arch-only",
+    "pod-install": "cd ios && pod deintegrate dummyApp.xcodeproj && RCT_NEW_ARCH_ENABLED=1 bundle exec pod install --repo-update --allow-root && cd ..",
     "ios": "react-native run-ios",
     "lint": "eslint .",
-    "start": "react-native start",
-    "test": "jest"
+    "start": "react-native start --reset-cache",
+    "test": "jest",
+    "android:clean": "cd android && rm -rf ./app/.cxx ./app/build && ./gradlew clean && cd .."
   },
   "dependencies": {
+    "@react-native-vector-icons/material-design-icons": "12.4.0",
+    "axios": "1.13.2",
     "react": "19.0.0",
-    "react-native": "0.78.2"
+    "react-native": "0.78.2",
+    "react-native-device-info": "15.0.1",
+    "react-native-paper": "5.14.5",
+    "react-native-safe-area-context": "5.6.2",
+    "react-redux": "9.2.0",
+    "redux": "5.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
