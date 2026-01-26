@@ -10,6 +10,10 @@ const MovieController: IMovieController = {
   getPopularMovies: async (page) => {
     const response = await fetchPopularMovies(page);
 
+    if (response.results.length === 0) {
+      return;
+    }
+
     CommonReduxStore.getInstance().dispatch({
       type: MOVIES.GET_LIST_MOVIES,
       payload: {

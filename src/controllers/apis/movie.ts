@@ -105,12 +105,12 @@ export const fetchPopularMovies = async (page: number) => {
   //   }
   // );
 
-  // if (page > 2) {
-  //   return {
-  //     page: page,
-  //     results: [],
-  //   };
-  // }
+  if (page > 2) {
+    return {
+      page: page,
+      results: [],
+    };
+  }
 
   const generateResponse = () => ({
     page,
