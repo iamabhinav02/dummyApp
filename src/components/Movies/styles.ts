@@ -1,14 +1,19 @@
 import { StyleSheet } from 'react-native';
+import { IColors } from '../../constants/colors';
 
-const styles = StyleSheet.create({
+const styles = (colors: IColors) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.SURFACE.PRIMARY,
   },
   header: {
-    justifyContent: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingTop: 60,
     marginBottom: 20,
+    gap: 16,
+    paddingHorizontal: 16,
   },
   movieContainer: {
     paddingHorizontal: 16,
@@ -18,18 +23,18 @@ const styles = StyleSheet.create({
   separator: {
     width: '100%',
     height: 1,
-    backgroundColor: 'red',
+    backgroundColor: colors.SURFACE.TERTIARY,
   },
   text: {
     fontSize: 14,
     fontWeight: 600,
-    color: 'black',
+    color: colors.TEXT.PRIMARY,
     textAlign: 'justify',
   },
   textCenter: {
     fontSize: 14,
     fontWeight: 600,
-    color: 'black',
+    color: colors.TEXT.PRIMARY,
     textAlign: 'center',
   },
 });

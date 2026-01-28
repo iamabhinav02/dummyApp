@@ -6,41 +6,46 @@ import MovieController from '../../controllers/MovieController';
 import styles from './styles';
 import { FlashList } from '@shopify/flash-list';
 import { IMovie } from '../../types/reducers';
-
-const SeparatorComponent = () => (
-  <View style={styles.separator} />
-);
+import { useAppContext } from '../../context/appContext';
 
 const Movies: React.FC = () => {
+  const { colors, toggleTheme } = useAppContext();
   const { popularMovies } = useSelector((selector: ICombinedAppState) => selector.movieReducer);
   const { pageIndex, movies } = popularMovies;
+
+  const style = styles(colors);
 
   const getMovies = useCallback(() => {
     MovieController.getPopularMovies(pageIndex + 1);
   }, [pageIndex]);
 
   const renderItem = useCallback(({ item, index } : { item: IMovie, index: number }) => (
-    <View style={styles.movieContainer}>
-      <Text style={styles.text}>{index + 1}. {item.title}</Text>
-      <Text style={styles.text}>{item.overview}</Text>
+    <View style={style.movieContainer}>
+      <Text style={style.text}>{index + 1}. {item.title}</Text>
+      <Text style={style.text}>{item.overview}</Text>
     </View>
-  ), []);
+  ), [style]);
 
   const HeaderComponent = useMemo(() => (
-    <View style={styles.header}>
+    <View style={style.header}>
       <Button title="Get movies" onPress={getMovies} />
+      <Button title="Change theme" onPress={toggleTheme} />
     </View>
-  ), [getMovies]);
+  ), [getMovies, toggleTheme, style]);
 
   const EmptyComponent = useMemo(() => (
-    <Text style={styles.textCenter}>{'No movies found'}</Text>
-  ), []);
+    <Text style={style.textCenter}>{'No movies found'}</Text>
+  ), [style]);
+
+  const SeparatorComponent = useCallback(() => (
+    <View style={style.separator} />
+  ), [style]);
 
   return (
-    <View style={styles.container}>
+    <View style={style.container}>
       {HeaderComponent}
       <FlashList
-        style={styles.container}
+        style={style.container}
         keyExtractor={(item) => item.id}
         data={movies}
         renderItem={renderItem}
