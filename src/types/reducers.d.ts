@@ -22,3 +22,36 @@ export type IPopularMovies = {
 export type IMovieReducer = {
   popularMovies: IPopularMovies;
 };
+
+export type CurrencyMeta = {
+  code: string;
+  name: string;
+  countryCode: string;
+};
+
+export type ICurrency = {
+  source_currency_code: string;
+  source_currency_name: string;
+  destination_currency_code: string;
+  destination_currency_name: string;
+}
+
+export type IConversionHistoryItem = {
+  id: number;
+  timestamp: number;
+  sourceCurrency: string;
+  destinationCurrency: string;
+  amount: number;
+  rate: number;
+  convertedAmount: number;
+};
+
+export type IConversionReducer = {
+  sourceCurrency: string | undefined;
+  destinationCurrency: string | undefined;
+  amount: number;
+  rate: number;
+  isLoading: boolean;
+  destinationCurrencies: Record<string, CurrencyMeta>;
+  conversionHistory: IConversionHistoryItem[];
+};
