@@ -1,26 +1,19 @@
-export type ICounterReducer = {
-  count: number;
-  isLoading: boolean;
-};
-
-export type IMovie = {
+export type IExpenseItem = {
   id: string;
   title: string;
-  adult: boolean;
-  original_language: string;
-  original_title: string;
-  overview: string;
-  popularity: number;
-  rating: number;
-}
+  amount: number;
+  category: string;
+  timestamp: number;
+};
 
-export type IPopularMovies = {
-  pageIndex: number;
-  movies: IMovie[];
-}
+export type IExpensesReducer = {
+  items: IExpenseItem[];
+};
 
-export type IMovieReducer = {
-  popularMovies: IPopularMovies;
+export type ICreditTip = {
+  id: string;
+  title: string;
+  description: string;
 };
 
 export type CurrencyMeta = {
@@ -29,29 +22,19 @@ export type CurrencyMeta = {
   countryCode: string;
 };
 
-export type ICurrency = {
-  source_currency_code: string;
-  source_currency_name: string;
-  destination_currency_code: string;
-  destination_currency_name: string;
-}
-
-export type IConversionHistoryItem = {
-  id: number;
-  timestamp: number;
-  sourceCurrency: string;
-  destinationCurrency: string;
-  amount: number;
-  rate: number;
-  convertedAmount: number;
+export type ICreditScoreReducer = {
+  score: number;
+  tips: ICreditTip[];
 };
 
-export type IConversionReducer = {
-  sourceCurrency: string | undefined;
-  destinationCurrency: string | undefined;
-  amount: number;
-  rate: number;
-  isLoading: boolean;
-  destinationCurrencies: Record<string, CurrencyMeta>;
-  conversionHistory: IConversionHistoryItem[];
+export type IGoalItem = {
+  id: string;
+  name: string;
+  targetAmount: number;
+  savedAmount: number;
+  updatedAt: number;
+};
+
+export type IGoalsReducer = {
+  items: IGoalItem[];
 };

@@ -10,29 +10,26 @@ import { NavigationContainer } from '@react-navigation/native';
 import Navigation from './src/navigation/Navigation';
 import { AsyncStorageController } from './src/controllers/AsyncStorageController';
 import { STORAGE_KEYS } from './src/constants/storage';
-import { IConversionHistoryItem } from './src/types/reducers';
-import CommonReduxStore from './src/store/commonStore';
-import { CONVERSION } from './src/reducers/actions';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ExpensesController } from './src/controllers/ExpensesController';
+import { CreditScoreController } from './src/controllers/CreditScoreController';
+import { GoalsController } from './src/controllers/GoalsController';
 
 enableScreens();
 
 const App = () => {
   const hydrateReducers = async () => {
     await AsyncStorageController.hydrate([
-      STORAGE_KEYS.CONVERSION_HISTORY,
+      STORAGE_KEYS.EXPENSES_ITEMS,
+      STORAGE_KEYS.CREDITSCORE_DATA,
+      STORAGE_KEYS.GOALS_ITEMS,
     ]);
 
-    const history = await AsyncStorageController.get<IConversionHistoryItem[]>(
-      STORAGE_KEYS.CONVERSION_HISTORY
-    );
-
-    if (history && history.length > 0) {
-      CommonReduxStore.getInstance().dispatch({
-        type: CONVERSION.ADD_TO_HISTORY,
-        payload: { conversionHistory: history },
-      });
-    }
+    await Promise.all([
+      ExpensesController.hydrate(),
+      CreditScoreController.hydrate(),
+      GoalsController.hydrate(),
+    ]);
   };
 
   useEffect(() => {

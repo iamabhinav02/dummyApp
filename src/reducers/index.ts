@@ -1,11 +1,12 @@
-import { counterReducer } from './counterReducer';
-import { conversionReducer } from './conversionReducer';
-import { movieReducer } from './movieReducer';
+import { expensesReducer } from './expensesReducer';
+import { creditScoreReducer } from './creditScoreReducer';
+import { goalsReducer } from './goalsReducer';
+import { MODULES } from '../constants/modules';
 
 const appReducers = {
-  counterReducer,
-  movieReducer,
-  conversionReducer,
+  [MODULES.EXPENSES.reducerKey]: expensesReducer,
+  [MODULES.CREDITSCORE.reducerKey]: creditScoreReducer,
+  [MODULES.GOALS.reducerKey]: goalsReducer,
 };
 
 export default appReducers;

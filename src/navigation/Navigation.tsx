@@ -1,42 +1,46 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { Platform } from 'react-native';
 import { ROUTES } from './routes';
-import ConversionHome from '../screens/ConversionHome';
-import ConversionHistory from '../screens/ConversionHistory';
+import HubHome from '../screens/HubHome';
+import ModuleHost from '../screens/ModuleHost';
+import { RootStackParamList } from './routes';
 
-const screenOptions = Platform.select({
+const androidVersion = typeof Platform.Version === 'string'
+  ? parseInt(Platform.Version, 10)
+  : Platform.Version;
+
+const screenOptions: NativeStackNavigationOptions = Platform.select<NativeStackNavigationOptions>({
   default: {
     headerShown: false,
-    animation: 'simple_push',
-    cardShadowEnabled: false,
-    cardOverlayEnabled: false,
+    animation: 'simple_push' as const,
     animationDuration: 200,
   },
   android: {
     headerShown: false,
     // android 9 below doesnt support simple_push
-    animation: (parseInt(Platform.Version, 10) > 28) ? 'simple_push' : 'ios_from_right',
-    cardShadowEnabled: false,
-    cardOverlayEnabled: false,
+    animation: (androidVersion > 28) ? 'simple_push' as const : 'ios_from_right' as const,
     animationDuration: 200,
   },
-});
+}) || {
+  headerShown: false,
+};
 
-const StackNavigator = createNativeStackNavigator();
+const StackNavigator = createNativeStackNavigator<RootStackParamList>();
 
 const Navigation = () => {
   return (
     <StackNavigator.Navigator
       screenOptions={screenOptions}
-      initialRouteName={ROUTES.CONVERSION_HOME_SCREEN}
+      initialRouteName={ROUTES.HUB_HOME_SCREEN}
     >
       <StackNavigator.Screen
-        name={ROUTES.CONVERSION_HOME_SCREEN}
-        component={ConversionHome}
+        name={ROUTES.HUB_HOME_SCREEN}
+        component={HubHome}
       />
       <StackNavigator.Screen
-        name={ROUTES.CONVERSION_HISTORY_SCREEN}
-        component={ConversionHistory}
+        name={ROUTES.MODULE_HOST_SCREEN}
+        component={ModuleHost}
       />
     </StackNavigator.Navigator>
   );
