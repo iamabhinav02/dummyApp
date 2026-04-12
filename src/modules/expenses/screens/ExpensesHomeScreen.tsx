@@ -31,7 +31,7 @@ const ExpensesHomeScreen: React.FC<Props> = ({ onClose, onAddExpense }) => {
           <Text variant="title">Summary</Text>
           <Text variant="body">Transactions: {summary.totalItems}</Text>
           <Text variant="body">Categories: {summary.categories}</Text>
-          <Text variant="body">Total spend: ${summary.totalAmount.toFixed(2)}</Text>
+          <Text variant="body">Total spend: {summary.totalAmount.toFixed(2)}</Text>
         </Card>
 
         <Button title="Add expense" onPress={onAddExpense} />

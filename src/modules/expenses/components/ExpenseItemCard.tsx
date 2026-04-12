@@ -17,7 +17,7 @@ const ExpenseItemCard: React.FC<Props> = ({ item, onRemove }) => {
       <Card style={style.card}>
         <View style={style.header}>
           <Text variant="title">{item.title}</Text>
-          <Text variant="label">${item.amount.toFixed(2)}</Text>
+          <Text variant="label">{item.amount.toFixed(2)}</Text>
         </View>
         <Text variant="body">Category: {item.category}</Text>
         <Text variant="body">{new Date(item.timestamp).toLocaleString()}</Text>

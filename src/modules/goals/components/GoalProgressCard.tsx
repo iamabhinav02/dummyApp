@@ -18,8 +18,8 @@ const GoalProgressCard: React.FC<Props> = ({ goal, onDelete }) => {
     <Background>
       <Card style={style.card}>
         <Text variant="title">{goal.name}</Text>
-        <Text variant="body">Saved: ${goal.savedAmount.toFixed(2)}</Text>
-        <Text variant="body">Target: ${goal.targetAmount.toFixed(2)}</Text>
+        <Text variant="body">Saved: {goal.savedAmount.toFixed(2)}</Text>
+        <Text variant="body">Target: {goal.targetAmount.toFixed(2)}</Text>
         <View style={style.progressWrap}>
           <View style={[style.progressFill, { width: `${progress}%` }]} />
         </View>
