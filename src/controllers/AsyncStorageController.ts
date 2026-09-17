@@ -37,9 +37,9 @@ export const AsyncStorageController = {
 
   // Only called during app launch to update cache from AsyncStorage
   async hydrate(keys: StorageKey[]) {
-    const entries = await AsyncStorage.multiGet(keys);
+    const entries = await AsyncStorage.getMany(keys);
 
-    entries.forEach(([key, value]) => {
+    Object.entries(entries).forEach(([key, value]) => {
       if (key && value) {
         memoryCache[key as StorageKey] = JSON.parse(value);
       }

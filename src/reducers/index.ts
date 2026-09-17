@@ -1,12 +1,7 @@
-import { expensesReducer } from './expensesReducer';
-import { creditScoreReducer } from './creditScoreReducer';
-import { goalsReducer } from './goalsReducer';
-import { MODULES } from '../constants/modules';
+import { conversationReducer } from './conversationReducer';
 
 const appReducers = {
-  [MODULES.EXPENSES.reducerKey]: expensesReducer,
-  [MODULES.CREDITSCORE.reducerKey]: creditScoreReducer,
-  [MODULES.GOALS.reducerKey]: goalsReducer,
+  conversationReducer,
 };
 
 export default appReducers;

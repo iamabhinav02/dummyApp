@@ -1,124 +1,108 @@
-# Bright Hub (Modular Mini-Apps)
+# AI Astrologer — Composable Conversation Experience
 
-This project implements a container React Native app that hosts multiple independent mini-apps in the same codebase.
+A React Native + TypeScript implementation of a modern AI conversation screen that
+renders **dynamic, extensible recommendation experiences** alongside a chat timeline.
 
-## Architecture Overview
+The emphasis is architecture: how new "conversation experiences" (recommendation
+types, message author types) can be added **without touching the core rendering
+pipeline**.
 
-The app follows a **host shell + module registry** approach:
+## Design principle: extend by registration, not modification
 
-- Host shell lives in `src/navigation` and `src/screens`:
-  - `HubHome` lists enabled mini-apps.
-  - `ModuleHost` loads and mounts selected module roots.
-- Modules are isolated under `src/modules/<module-name>`.
-- A typed registry in `src/modules/registry` controls module metadata, enablement, and lazy loading.
-- Shared global services:
-  - Navigation container and shell routing
-  - Redux store with namespaced module slices
-  - Shared design system and theme context
-  - Shared persistence adapter (`AsyncStorageController`)
+The app leans on one idea applied in two places — a **registry** that maps a
+`type` string to a renderer/descriptor, with a **fallback** for unknown types and
+a **runtime registration** seam. New experiences plug in by adding a registry
+entry; the timeline, message and card components never change.
 
-## Module Loading Strategy
+| Registry | Maps | Add a new… | File |
+| --- | --- | --- | --- |
+| Recommendation | `type` → descriptor (icon, accent, CTA, optional custom body) | recommendation experience | `features/conversation/components/recommendations/recommendationRegistry.tsx` |
+| Message | author `type` → bubble component | message/author type | `features/conversation/components/messages/messageRegistry.ts` |
 
-1. `HubHome` reads enabled modules from registry (`getEnabledModules()`).
-2. User taps a module card.
-3. Host navigates to `MODULE_HOST_SCREEN` with `moduleId`.
-4. `ModuleHost` resolves module config, lazy-loads module root via `loadRoot()`, and renders it.
+Unknown recommendation types fall back to a generic card, so the client can render
+**future backend experiences before a dedicated renderer ships**.
 
-This makes each mini-app pluggable and easy to enable/disable via registry config.
+## Project structure
 
-## Mini-Apps
+```
+src/
+  features/conversation/          # the entire feature, self-contained
+    types.ts                      # domain model (open-ended by design)
+    data/seed.ts                  # initial mock payload (assignment schema, extended)
+    api/mockConversationApi.ts    # simulated fetch/send (latency + failure flags)
+    hooks/useConversation.ts      # selector for the conversation slice
+    utils/clipboard.ts            # copy support
+    screens/ConversationScreen.tsx
+    components/
+      timeline/                   # FlashList timeline, date separators, grouping
+      messages/                   # ChatBubble + per-author renderers + registry
+      recommendations/            # carousel + card + registry (the core)
+      composer/                   # composer + reply preview
+      actions/                    # long-press action sheet
+      states/                     # loading / empty / error
+    __tests__/                    # reducer, registry, timeline-builder unit tests
+  reducers/                       # conversationReducer + action enums
+  controllers/                    # ConversationController (singleton orchestrator)
+  common/ui/                      # theme-aware design system (Text, Card, Button…)
+  context/appContext.tsx          # theme provider (light/dark)
+  store/ | navigation/ | constants/
+```
 
-### 1) Expense Tracker (`src/modules/expenses`)
-- Internal stack:
-  - `EXPENSES_HOME_SCREEN`
-  - `EXPENSES_ADD_SCREEN`
-- Features:
-  - Add expenses (title, amount, category)
-  - View summary and expense list
-  - Delete expense items
-- Persistence key: `expenses:items`
+### Architecture
 
-### 2) Credit Score Dashboard (`src/modules/creditscore`)
-- Internal stack:
-  - `CREDITSCORE_HOME_SCREEN`
-  - `CREDITSCORE_TIPS_SCREEN`
-- Features:
-  - View mock credit score
-  - Refresh score and sample tips
-  - Open detailed tips screen
-- Persistence key: `creditscore:data`
+- **State**: a single Redux store with a namespaced `conversationReducer` slice.
+- **Controllers**: `ConversationController` is a singleton that owns all
+  orchestration (API calls, optimistic updates, persistence) and dispatches into
+  Redux — components stay declarative and never call the API directly.
+- **Design system**: all UI is built from `src/common/ui` primitives and reads
+  colors from `AppContext`, so the whole screen is theme-aware (toggle in the header).
+- **Persistence**: `AsyncStorageController` persists settled messages under
+  `conversation:messages`; only delivered messages are stored, so `sending`/`failed`
+  drafts never rehydrate.
 
-### 3) Goals Planner (`src/modules/goals`)
-- Internal stack:
-  - `GOALS_HOME_SCREEN`
-  - `GOALS_UPSERT_SCREEN`
-- Features:
-  - Create goals with target/saved values
-  - Track progress with visual progress bar
-  - Delete goals
-- Persistence key: `goals:items`
+## Part A — Composable conversation
 
-## Shared Design System
+- **Timeline** (`ConversationTimeline`) — virtualized via `@shopify/flash-list`,
+  with chat-native `maintainVisibleContentPosition` (render-from-bottom +
+  auto-scroll) and a manual `scrollToEnd` guarantee on send.
+- **Message types** — `user`, `ai`, `human`, `system`, each a registered renderer.
+- **Date separators & grouping** — `timelineBuilder.ts` is a pure function that
+  turns the message list into rows, inserting day separators and flagging the
+  first/last message of each same-author group. Unit tested.
+- **Recommendations** — an AI message renders a horizontal `RecommendationCarousel`
+  of cards; each card is driven entirely by its type descriptor. Tapping a card
+  shows an `Alert`.
 
-Reusable UI primitives live in `src/common/ui`:
+## Part B — Production interactions
 
-- `Button`
-- `Card`
-- `Text`
-- `Input`
-- Tokens in `tokens.ts` (`spacing`, `radius`, `shadow`, `typography`)
+- **Long-press actions** — Reply / Copy / Delete via a bottom action sheet.
+  Delete removes the message and updates state while preserving scroll position;
+  Reply raises a preview strip above the composer.
+- **AI feedback** — 👍 / 👎 per AI message; selecting 👎 expands reason chips
+  (Inaccurate, Too Generic, Didn't Help, Too Long). All persisted to local state.
+- **Sending** — messages are added optimistically (`sending`), the API delay is
+  simulated, then reconciled to `sent` or `failed` with an inline **Retry**.
+- **Loading / empty / error** — initial `Loading conversation…`, `Start your
+  conversation.` empty state, and an `Unable to load conversation.` error with Retry.
 
-All modules consume these components for consistent look and behavior. Theme colors are sourced from container `AppContext`.
+## Simulating states
 
-## State Management
+`features/conversation/api/mockConversationApi.ts`:
 
-A single Redux store is used with namespaced slices:
+- `SIMULATE_INITIAL_LOAD_FAILURE` — set `true` to exercise the error/retry state.
+- `SEND_FAILURE_RATE` — probability a sent message fails (default `0.25`), drives
+  the Failed/Retry flow.
 
-- `expensesReducer`
-- `creditScoreReducer`
-- `goalsReducer`
-
-Module reducers are isolated and accessed by their own controllers.
-
-## Persistence & Hydration
-
-Persistence uses `AsyncStorage` via `AsyncStorageController`.
-
-- Hydration is triggered in `App.tsx` on app launch.
-- Each module has its own controller hydrate method:
-  - `ExpensesController.hydrate()`
-  - `CreditScoreController.hydrate()`
-  - `GoalsController.hydrate()`
-
-Module data survives app reloads independently.
-
-## Run Instructions
+## Run
 
 ```sh
 npm start
 ```
 
 ```sh
-npm run android
-```
-
-```sh
 npm run ios
 ```
 
-## Tests
-
 ```sh
-npm test
+npm run android
 ```
-
-## Demo Checklist
-
-- [ ] Show Hub Home listing all enabled mini-apps
-- [ ] Open each mini-app from container
-- [ ] Demonstrate each module has its own internal navigation
-- [ ] Demonstrate persistence after app reload:
-  - [ ] Expenses restored
-  - [ ] Credit score/tips restored
-  - [ ] Goals restored
-- [ ] Show shared UI consistency across modules

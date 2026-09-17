@@ -1,11 +1,11 @@
 buildscript {
     ext {
-        buildToolsVersion = "35.0.0"
+        buildToolsVersion = "37.0.0"
         minSdkVersion = 24
-        compileSdkVersion = 35
-        targetSdkVersion = 35
+        compileSdkVersion = 37
+        targetSdkVersion = 36
         ndkVersion = "27.1.12297006"
-        kotlinVersion = "2.0.21"
+        kotlinVersion = "2.2.10"
     }
     repositories {
         google()
@@ -19,3 +19,14 @@ buildscript {
 }
 
 apply plugin: "com.facebook.react.rootproject"
+
+// Tell native libraries (e.g. react-native-gesture-handler, react-native-screens)
+// where react-native lives, so they don't shell out to `node` during Gradle
+// configuration. Android Studio launches Gradle from the macOS GUI, whose PATH
+// does not include nvm/Homebrew, so those `node` calls fail. Setting this
+// documented extension property resolves it without touching the system PATH.
+allprojects {
+    ext {
+        REACT_NATIVE_NODE_MODULES_DIR = new File(rootDir, "../node_modules/react-native").absolutePath
+    }
+}

@@ -1,10 +1,8 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NativeStackNavigationOptions } from '@react-navigation/native-stack';
 import { Platform } from 'react-native';
-import { ROUTES } from './routes';
-import HubHome from '../screens/HubHome';
-import ModuleHost from '../screens/ModuleHost';
-import { RootStackParamList } from './routes';
+import { ROUTES, RootStackParamList } from './routes';
+import { ConversationScreen } from '../features/conversation';
 
 const androidVersion = typeof Platform.Version === 'string'
   ? parseInt(Platform.Version, 10)
@@ -32,15 +30,11 @@ const Navigation = () => {
   return (
     <StackNavigator.Navigator
       screenOptions={screenOptions}
-      initialRouteName={ROUTES.HUB_HOME_SCREEN}
+      initialRouteName={ROUTES.CONVERSATION_SCREEN}
     >
       <StackNavigator.Screen
-        name={ROUTES.HUB_HOME_SCREEN}
-        component={HubHome}
-      />
-      <StackNavigator.Screen
-        name={ROUTES.MODULE_HOST_SCREEN}
-        component={ModuleHost}
+        name={ROUTES.CONVERSATION_SCREEN}
+        component={ConversationScreen}
       />
     </StackNavigator.Navigator>
   );

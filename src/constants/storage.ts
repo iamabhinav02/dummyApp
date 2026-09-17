@@ -1,9 +1,5 @@
-import { MODULES } from './modules';
-
 export const STORAGE_KEYS = {
-  EXPENSES_ITEMS: MODULES.EXPENSES.storageKey,
-  CREDITSCORE_DATA: MODULES.CREDITSCORE.storageKey,
-  GOALS_ITEMS: MODULES.GOALS.storageKey,
-};
+  THEME_MODE: 'theme:mode',
+} as const;
 
 export type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];
