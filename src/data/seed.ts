@@ -2,15 +2,89 @@ import {
   MESSAGE_AUTHOR,
   MESSAGE_STATUS,
   RECOMMENDATION_TYPE,
+  SENDER_ID,
 } from '../enums/conversation';
-import { ConversationMessage } from '../types/conversation';
+import {
+  Conversation,
+  Message,
+  MessageAuthorType,
+  NormalizedConversation,
+  Recommendation,
+  User,
+} from '../types/conversation';
+
+/** The single conversation this app models today. */
+export const DEFAULT_CONVERSATION_ID = 'conversation:default';
+
+/** The stable userId of the person using the app. */
+export const LOCAL_USER_ID: string = SENDER_ID.LOCAL_USER;
+
+/** Maps an author category to the stable userId of its participant. */
+const SENDER_ID_BY_AUTHOR: Record<MessageAuthorType, SENDER_ID> = {
+  [MESSAGE_AUTHOR.SYSTEM]: SENDER_ID.SYSTEM,
+  [MESSAGE_AUTHOR.USER]: SENDER_ID.LOCAL_USER,
+  [MESSAGE_AUTHOR.AI]: SENDER_ID.AI,
+  [MESSAGE_AUTHOR.HUMAN]: SENDER_ID.HUMAN,
+};
+
+/** Resolve the stable senderId for an author type (used by seed, API, migration). */
+export const senderIdForAuthor = (type: MessageAuthorType): string =>
+  SENDER_ID_BY_AUTHOR[type] ?? SENDER_ID.SYSTEM;
+
+/** One `User` per participant type, each with a unique, stable userId. */
+export const buildSeedUsers = (): Record<string, User> => ({
+  [SENDER_ID.SYSTEM]: {
+    userId: SENDER_ID.SYSTEM,
+    authorType: MESSAGE_AUTHOR.SYSTEM,
+    displayName: 'System',
+  },
+  [SENDER_ID.LOCAL_USER]: {
+    userId: SENDER_ID.LOCAL_USER,
+    authorType: MESSAGE_AUTHOR.USER,
+    displayName: 'You',
+  },
+  [SENDER_ID.AI]: {
+    userId: SENDER_ID.AI,
+    authorType: MESSAGE_AUTHOR.AI,
+    displayName: 'AI Astrologer',
+    icon: 'crystal-ball',
+  },
+  [SENDER_ID.HUMAN]: {
+    userId: SENDER_ID.HUMAN,
+    authorType: MESSAGE_AUTHOR.HUMAN,
+    displayName: 'Astrologer',
+    icon: 'account-voice',
+  },
+});
+
+/** The default conversation record. */
+export const buildSeedConversation = (now = Date.now()): Conversation => ({
+  conversationId: DEFAULT_CONVERSATION_ID,
+  title: 'AI Astrologer',
+  participantIds: [
+    SENDER_ID.LOCAL_USER,
+    SENDER_ID.AI,
+    SENDER_ID.HUMAN,
+    SENDER_ID.SYSTEM,
+  ],
+  createdAt: now,
+  updatedAt: now,
+});
 
 /**
  * Static content for the initial conversation, mirroring the assignment's mock
- * API payload. Timestamps are stamped at fetch time (see buildSeedConversation)
- * so the timeline always renders relative "today" separators and grouping.
+ * API payload. Timestamps are stamped at build time so the timeline always
+ * renders relative "today" separators and grouping.
  */
-const SEED_CONTENT: Omit<ConversationMessage, 'createdAt'>[] = [
+type SeedMessage = {
+  id: string;
+  type: MessageAuthorType;
+  text: string;
+  status?: MESSAGE_STATUS;
+  recommendations?: Recommendation[];
+};
+
+const SEED_CONTENT: SeedMessage[] = [
   {
     id: '1',
     type: MESSAGE_AUTHOR.SYSTEM,
@@ -41,16 +115,38 @@ const SEED_CONTENT: Omit<ConversationMessage, 'createdAt'>[] = [
 ];
 
 /**
- * Returns a fresh copy of the seed conversation with monotonically increasing
+ * Returns a fresh, normalized seed conversation with monotonically increasing
  * timestamps ending "now", so the newest message sits at the bottom.
  */
-export const buildSeedConversation = (): ConversationMessage[] => {
+export const buildSeedState = (): NormalizedConversation => {
   const now = Date.now();
   const step = 2 * 60 * 1000; // 2 minutes between messages
   const total = SEED_CONTENT.length;
 
-  return SEED_CONTENT.map((message, index) => ({
-    ...message,
-    createdAt: now - (total - 1 - index) * step,
-  }));
+  const messagesById: Record<string, Message> = {};
+  const messageOrder: string[] = [];
+
+  SEED_CONTENT.forEach((seed, index) => {
+    const message: Message = {
+      messageId: seed.id,
+      conversationId: DEFAULT_CONVERSATION_ID,
+      senderId: senderIdForAuthor(seed.type),
+      type: seed.type,
+      text: seed.text,
+      createdAt: now - (total - 1 - index) * step,
+      status: seed.status,
+      reactions: [],
+      recommendations: seed.recommendations ?? [],
+    };
+    messagesById[message.messageId] = message;
+    messageOrder.push(message.messageId);
+  });
+
+  return {
+    usersById: buildSeedUsers(),
+    conversationsById: { [DEFAULT_CONVERSATION_ID]: buildSeedConversation(now) },
+    activeConversationId: DEFAULT_CONVERSATION_ID,
+    messagesById,
+    messageOrder,
+  };
 };

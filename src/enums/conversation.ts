@@ -6,6 +6,30 @@ export enum MESSAGE_AUTHOR {
   SYSTEM = 'system',
 }
 
+/**
+ * Stable, unique identity per type of participant. Each value is the `userId`
+ * of exactly one `User` in `usersById`, so identity survives re-renders,
+ * persistence, and future multi-conversation support.
+ */
+export enum SENDER_ID {
+  SYSTEM = 'system',
+  AI = 'ai',
+  HUMAN = 'human',
+  LOCAL_USER = 'local-user',
+}
+
+/**
+ * Reaction experiences a user can attach to a message. LIKE/DISLIKE are
+ * mutually exclusive and supersede the old like/dislike feedback rating; the
+ * set is open-ended so new reactions can be added without reshaping the model.
+ */
+export enum REACTION_TYPE {
+  LIKE = 'like',
+  DISLIKE = 'dislike',
+  LOVE = 'love',
+  INSIGHTFUL = 'insightful',
+}
+
 /** Delivery lifecycle for optimistic (user-sent) messages. */
 export enum MESSAGE_STATUS {
   SENDING = 'sending',
@@ -21,11 +45,7 @@ export enum LOAD_STATUS {
   ERROR = 'error',
 }
 
-export enum FEEDBACK_RATING {
-  LIKE = 'like',
-  DISLIKE = 'dislike',
-}
-
+/** Reason chips shown for a DISLIKE reaction; stored as its `comments`. */
 export enum FEEDBACK_REASON {
   INACCURATE = 'inaccurate',
   TOO_GENERIC = 'too_generic',

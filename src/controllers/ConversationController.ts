@@ -1,23 +1,25 @@
 import { CONVERSATION } from '../reducers/actions';
-import { STORAGE_KEYS } from '../constants/storage';
+import { conversationMessagesKey, STORAGE_KEYS } from '../constants/storage';
 import CommonReduxStore from '../store/commonStore';
 import { mockConversationApi } from './apis/mockConversationApi';
 import { AsyncStorageController } from './AsyncStorageController';
 import {
-  FEEDBACK_RATING,
   LOAD_STATUS,
   MESSAGE_AUTHOR,
   MESSAGE_STATUS,
+  REACTION_TYPE,
 } from '../enums/conversation';
+import { DEFAULT_CONVERSATION_ID, LOCAL_USER_ID } from '../data/seed';
 import {
-  ConversationMessage,
+  Conversation,
   ConversationState,
-  FeedbackRating,
   FeedbackReason,
-  ReplyContext,
+  Message,
+  NormalizedConversation,
+  Reaction,
+  ReactionType,
+  User,
 } from '../types/conversation';
-
-const REPLY_PREVIEW_MAX = 120;
 
 const store = () => CommonReduxStore.getInstance();
 
@@ -25,45 +27,152 @@ const getState = (): ConversationState =>
   store().getState().conversationReducer as ConversationState;
 
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const createClientRequestId = () => `req-${createId()}`;
+
+/** LIKE/DISLIKE are mutually exclusive; setting one clears the other. */
+const EXCLUSIVE_REACTIONS: ReactionType[] = [REACTION_TYPE.LIKE, REACTION_TYPE.DISLIKE];
+
+// --- dispatch helpers -------------------------------------------------------
 
 const setLoadStatus = (loadStatus: ConversationState['loadStatus']) => {
   store().dispatch({ type: CONVERSATION.SET_LOAD_STATUS, payload: { loadStatus } });
 };
 
-const setMessages = (messages: ConversationMessage[]) => {
-  store().dispatch({ type: CONVERSATION.SET_MESSAGES, payload: { messages } });
+const setSnapshot = (snapshot: NormalizedConversation) => {
+  store().dispatch({ type: CONVERSATION.SET_MESSAGES, payload: { snapshot } });
 };
 
-const addMessage = (message: ConversationMessage) => {
+const addMessage = (message: Message) => {
   store().dispatch({ type: CONVERSATION.ADD_MESSAGE, payload: { message } });
 };
 
-const patchMessage = (messageId: string, patch: Partial<ConversationMessage>) => {
+const patchMessage = (messageId: string, patch: Partial<Message>) => {
   store().dispatch({ type: CONVERSATION.PATCH_MESSAGE, payload: { messageId, patch } });
 };
 
-/**
- * Persist the conversation, keeping only settled messages so `sending`/`failed`
- * drafts never rehydrate on the next launch.
- */
-const persist = () => {
-  const settled = getState().messages.filter(
-    (message) => message.status !== MESSAGE_STATUS.SENDING && message.status !== MESSAGE_STATUS.FAILED,
+const removeMessage = (messageId: string) => {
+  store().dispatch({ type: CONVERSATION.REMOVE_MESSAGE, payload: { messageId } });
+};
+
+const dispatchAddReaction = (reaction: Reaction) => {
+  store().dispatch({ type: CONVERSATION.ADD_REACTION, payload: { reaction } });
+};
+
+const dispatchRemoveReaction = (
+  messageId: string,
+  userId: string,
+  reactionType: ReactionType,
+) => {
+  store().dispatch({
+    type: CONVERSATION.REMOVE_REACTION,
+    payload: { messageId, userId, reactionType },
+  });
+};
+
+// --- read helpers -----------------------------------------------------------
+
+const findMessage = (messageId: string): Message | undefined =>
+  getState().messagesById[messageId];
+
+const localReaction = (
+  message: Message,
+  reactionType: ReactionType,
+): Reaction | undefined =>
+  message.reactions.find(
+    (r) => r.userId === LOCAL_USER_ID && r.reactionType === reactionType,
   );
-  return AsyncStorageController.set(STORAGE_KEYS.CONVERSATION_MESSAGES, settled);
+
+// --- persistence ------------------------------------------------------------
+
+/** Shared metadata persisted once for all conversations (no message bodies). */
+type ConversationIndex = {
+  usersById: Record<string, User>;
+  conversationsById: Record<string, Conversation>;
+  activeConversationId: string | null;
+};
+
+/** One conversation's persisted messages, stored under its own key. */
+type PersistedConversationMessages = {
+  messagesById: Record<string, Message>;
+  messageOrder: string[];
+};
+
+/** Persist one conversation's settled messages under its own key. */
+const persistConversationMessages = (
+  state: ConversationState,
+  conversationId: string,
+) => {
+  // Scope to this conversation, and drop sending/failed from BOTH map and order
+  // so a rehydrated order never references a missing or in-flight message.
+  const messageOrder = state.messageOrder.filter((id) => {
+    const message = state.messagesById[id];
+    if (!message || message.conversationId !== conversationId) {
+      return false;
+    }
+    return (
+      message.status !== MESSAGE_STATUS.SENDING &&
+      message.status !== MESSAGE_STATUS.FAILED
+    );
+  });
+
+  const messagesById: Record<string, Message> = {};
+  messageOrder.forEach((id) => {
+    messagesById[id] = state.messagesById[id];
+  });
+
+  const payload: PersistedConversationMessages = { messagesById, messageOrder };
+  return AsyncStorageController.set(conversationMessagesKey(conversationId), payload);
+};
+
+/**
+ * Persist the conversation. Messages live under a per-conversation key, so a
+ * write to one conversation never rewrites another; a small shared index holds
+ * the users + conversation records + active id. Pass a `conversationId` to
+ * persist a specific conversation (defaults to the active one).
+ */
+const persist = (conversationId?: string) => {
+  const state = getState();
+  const targetId = conversationId ?? state.activeConversationId;
+
+  const index: ConversationIndex = {
+    usersById: state.usersById,
+    conversationsById: state.conversationsById,
+    activeConversationId: state.activeConversationId,
+  };
+
+  const writes: Promise<void>[] = [
+    AsyncStorageController.set(STORAGE_KEYS.CONVERSATION_INDEX, index),
+  ];
+  if (targetId) {
+    writes.push(persistConversationMessages(state, targetId));
+  }
+
+  return Promise.all(writes);
 };
 
 export const ConversationController = {
-  /** Called on launch: restore persisted history, otherwise load from the API. */
+  /** Called on launch: restore the active conversation, otherwise load from the API. */
   async hydrate() {
-    const stored = await AsyncStorageController.get<ConversationMessage[]>(
-      STORAGE_KEYS.CONVERSATION_MESSAGES,
+    const index = await AsyncStorageController.get<ConversationIndex>(
+      STORAGE_KEYS.CONVERSATION_INDEX,
     );
+    const conversationId = index?.activeConversationId;
 
-    if (stored && stored.length) {
-      setMessages(stored);
-      setLoadStatus(LOAD_STATUS.READY);
-      return;
+    if (index && conversationId) {
+      const stored = await AsyncStorageController.get<PersistedConversationMessages>(
+        conversationMessagesKey(conversationId),
+      );
+      if (stored && stored.messageOrder?.length) {
+        setSnapshot({
+          usersById: index.usersById,
+          conversationsById: index.conversationsById,
+          activeConversationId: conversationId,
+          messagesById: stored.messagesById,
+          messageOrder: stored.messageOrder,
+        });
+        setLoadStatus(LOAD_STATUS.READY);
+        return;
+      }
     }
 
     await this.loadInitial();
@@ -73,8 +182,8 @@ export const ConversationController = {
   async loadInitial() {
     setLoadStatus(LOAD_STATUS.LOADING);
     try {
-      const messages = await mockConversationApi.fetchConversation();
-      setMessages(messages);
+      const snapshot = await mockConversationApi.fetchConversation();
+      setSnapshot(snapshot);
       setLoadStatus(LOAD_STATUS.READY);
       persist();
     } catch {
@@ -88,29 +197,35 @@ export const ConversationController = {
   },
 
   /** Optimistically add a user message, then attempt delivery. */
-  async sendMessage(text: string, replyTo?: ReplyContext | null) {
+  async sendMessage(text: string, replyToMessageId?: string | null) {
     const trimmed = text.trim();
     if (!trimmed) {
       return;
     }
 
-    const optimistic: ConversationMessage = {
-      id: createId(),
+    const conversationId = getState().activeConversationId ?? DEFAULT_CONVERSATION_ID;
+
+    const optimistic: Message = {
+      messageId: createId(),
+      conversationId,
+      senderId: LOCAL_USER_ID,
+      clientRequestId: createClientRequestId(),
       type: MESSAGE_AUTHOR.USER,
       text: trimmed,
       createdAt: Date.now(),
       status: MESSAGE_STATUS.SENDING,
-      replyTo: replyTo ?? undefined,
+      reactions: [],
+      recommendations: [],
+      replyToMessageId: replyToMessageId ?? undefined,
     };
 
     addMessage(optimistic);
-    this.clearReply();
     await this.deliver(optimistic);
   },
 
   /** Retry a message that previously failed to send. */
   async retryMessage(messageId: string) {
-    const message = getState().messages.find((item) => item.id === messageId);
+    const message = findMessage(messageId);
     if (!message) {
       return;
     }
@@ -119,65 +234,77 @@ export const ConversationController = {
   },
 
   /** Shared send pipeline: simulate the request, then reconcile state. */
-  async deliver(message: ConversationMessage) {
+  async deliver(message: Message) {
     try {
-      const aiReply = await mockConversationApi.sendMessage(message.text);
-      patchMessage(message.id, { status: MESSAGE_STATUS.SENT });
+      const aiReply = await mockConversationApi.sendMessage(
+        message.text,
+        message.conversationId,
+      );
+      patchMessage(message.messageId, { status: MESSAGE_STATUS.SENT });
       addMessage(aiReply);
       persist();
     } catch {
-      patchMessage(message.id, { status: MESSAGE_STATUS.FAILED });
+      patchMessage(message.messageId, { status: MESSAGE_STATUS.FAILED });
     }
   },
 
   deleteMessage(messageId: string) {
-    store().dispatch({ type: CONVERSATION.REMOVE_MESSAGE, payload: { messageId } });
+    removeMessage(messageId);
     persist();
   },
 
-  /** Toggle like/dislike on an AI message. Switching away from dislike clears reasons. */
-  setRating(messageId: string, rating: FeedbackRating) {
-    const message = getState().messages.find((item) => item.id === messageId);
+  /**
+   * Toggle the local user's reaction of a given type on a message. LIKE/DISLIKE
+   * are mutually exclusive; toggling one off or switching clears the other.
+   */
+  toggleReaction(messageId: string, reactionType: ReactionType) {
+    const message = findMessage(messageId);
     if (!message) {
       return;
     }
 
-    const current = message.feedback ?? { reasons: [] };
-    const nextRating = current.rating === rating ? undefined : rating;
-    const nextReasons = nextRating === FEEDBACK_RATING.DISLIKE ? current.reasons : [];
+    if (localReaction(message, reactionType)) {
+      dispatchRemoveReaction(messageId, LOCAL_USER_ID, reactionType);
+      persist();
+      return;
+    }
 
-    patchMessage(messageId, { feedback: { rating: nextRating, reasons: nextReasons } });
+    if (EXCLUSIVE_REACTIONS.includes(reactionType)) {
+      EXCLUSIVE_REACTIONS.filter((type) => type !== reactionType).forEach((opposite) => {
+        if (localReaction(message, opposite)) {
+          dispatchRemoveReaction(messageId, LOCAL_USER_ID, opposite);
+        }
+      });
+    }
+
+    dispatchAddReaction({
+      messageId,
+      userId: LOCAL_USER_ID,
+      reactionType,
+      comments: [],
+      createdAt: Date.now(),
+    });
     persist();
   },
 
-  /** Toggle a dislike reason chip. */
+  /** Toggle a dislike reason chip, stored as a comment on the DISLIKE reaction. */
   toggleReason(messageId: string, reason: FeedbackReason) {
-    const message = getState().messages.find((item) => item.id === messageId);
+    const message = findMessage(messageId);
     if (!message) {
       return;
     }
 
-    const current = message.feedback ?? { reasons: [] };
-    const hasReason = current.reasons.includes(reason);
-    const nextReasons = hasReason
-      ? current.reasons.filter((item) => item !== reason)
-      : [...current.reasons, reason];
+    const dislike = localReaction(message, REACTION_TYPE.DISLIKE);
+    if (!dislike) {
+      return; // reasons only apply while a dislike is active
+    }
 
-    patchMessage(messageId, { feedback: { ...current, reasons: nextReasons } });
+    const hasReason = dislike.comments.includes(reason);
+    const comments = hasReason
+      ? dislike.comments.filter((item) => item !== reason)
+      : [...dislike.comments, reason];
+
+    dispatchAddReaction({ ...dislike, comments });
     persist();
-  },
-
-  /** Set the active reply target shown above the composer. */
-  setReply(message: ConversationMessage) {
-    const reply: ReplyContext = {
-      messageId: message.id,
-      author: message.type,
-      preview: message.text.slice(0, REPLY_PREVIEW_MAX),
-    };
-    store().dispatch({ type: CONVERSATION.SET_REPLY, payload: { reply } });
-  },
-
-  clearReply() {
-    store().dispatch({ type: CONVERSATION.SET_REPLY, payload: { reply: null } });
   },
 };

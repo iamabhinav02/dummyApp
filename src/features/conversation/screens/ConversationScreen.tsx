@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { useSelector } from 'react-redux';
@@ -8,7 +8,13 @@ import { THEME_TYPE } from '../../../enums/common';
 import { LOAD_STATUS } from '../../../enums/conversation';
 import Text from '../../../common/ui/Text';
 import { ConversationController } from '../../../controllers/ConversationController';
-import { ConversationMessage, Recommendation } from '../../../types/conversation';
+import {
+  FeedbackReason,
+  Message,
+  ReactionType,
+  Recommendation,
+  ReplyContext,
+} from '../../../types/conversation';
 import ConversationTimeline from '../components/timeline/ConversationTimeline';
 import Composer from '../components/composer/Composer';
 import MessageActionsMenu from '../components/actions/MessageActionsMenu';
@@ -21,35 +27,88 @@ import { copyToClipboard } from '../../../utils/common';
 import { ICombinedAppState } from '../../../store';
 import useStyles from './styles';
 
+const REPLY_PREVIEW_MAX = 120;
+
 const ConversationScreen: React.FC = () => {
   const { colors, theme, toggleTheme } = useAppContext();
   const styles = useStyles(colors);
   const insets = useSafeAreaInsets();
 
-  const { loadStatus, messages, reply } = useSelector((state: ICombinedAppState) => state.conversationReducer);
-  const [actionTarget, setActionTarget] = useState<ConversationMessage | null>(null);
+  // Narrow subscriptions: these references are stable across in-place message
+  // patches, so a reaction never re-renders the screen.
+  const loadStatus = useSelector((state: ICombinedAppState) => state.conversationReducer.loadStatus);
+  const hasMessages = useSelector(
+    (state: ICombinedAppState) => state.conversationReducer.messageOrder.length > 0,
+  );
+
+  const [actionTarget, setActionTarget] = useState<Message | null>(null);
+  // The composer's active reply target is transient UI state, not global/redux.
+  const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
+
+  // Resolve the reply preview from primitives so reacting to the target message
+  // doesn't re-render the composer.
+  const replyAuthor = useSelector((state: ICombinedAppState) =>
+    replyTargetId ? state.conversationReducer.messagesById[replyTargetId]?.type : undefined,
+  );
+  const replyText = useSelector((state: ICombinedAppState) =>
+    replyTargetId ? state.conversationReducer.messagesById[replyTargetId]?.text : undefined,
+  );
+  const reply = useMemo<ReplyContext | null>(() => {
+    if (!replyTargetId || replyAuthor === undefined || replyText === undefined) {
+      return null;
+    }
+    return {
+      messageId: replyTargetId,
+      author: replyAuthor,
+      preview: replyText.slice(0, REPLY_PREVIEW_MAX),
+    };
+  }, [replyTargetId, replyAuthor, replyText]);
 
   const closeMenu = () => setActionTarget(null);
 
-  const handleReply = (message: ConversationMessage) => {
-    ConversationController.setReply(message);
+  const handleReply = (message: Message) => {
+    setReplyTargetId(message.messageId);
     closeMenu();
   };
 
-  const handleCopy = (message: ConversationMessage) => {
+  const handleCopy = (message: Message) => {
     copyToClipboard(message.text);
     closeMenu();
     Alert.alert('Copied', 'Message copied to clipboard.');
   };
 
-  const handleDelete = (message: ConversationMessage) => {
-    ConversationController.deleteMessage(message.id);
+  const handleDelete = (message: Message) => {
+    ConversationController.deleteMessage(message.messageId);
     closeMenu();
   };
 
-  const handlePressRecommendation = (recommendation: Recommendation) => {
+  // Stable handler identities so memoized rows don't re-render on screen updates.
+  const onLongPressMessage = useCallback((message: Message) => setActionTarget(message), []);
+  const onRetryMessage = useCallback(
+    (message: Message) => ConversationController.retryMessage(message.messageId),
+    [],
+  );
+  const onPressRecommendation = useCallback((recommendation: Recommendation) => {
     Alert.alert(recommendation.title, `Opening the ${recommendation.type} experience.`);
-  };
+  }, []);
+  const onToggleReaction = useCallback(
+    (messageId: string, reactionType: ReactionType) =>
+      ConversationController.toggleReaction(messageId, reactionType),
+    [],
+  );
+  const onToggleReason = useCallback(
+    (messageId: string, reason: FeedbackReason) =>
+      ConversationController.toggleReason(messageId, reason),
+    [],
+  );
+
+  const handleSend = useCallback(
+    (text: string) => {
+      ConversationController.sendMessage(text, replyTargetId);
+      setReplyTargetId(null);
+    },
+    [replyTargetId],
+  );
 
   const renderBody = () => {
     if (loadStatus === LOAD_STATUS.LOADING || loadStatus === LOAD_STATUS.IDLE) {
@@ -58,17 +117,16 @@ const ConversationScreen: React.FC = () => {
     if (loadStatus === LOAD_STATUS.ERROR) {
       return <ErrorState onRetry={() => ConversationController.retryLoad()} />;
     }
-    if (!messages.length) {
+    if (!hasMessages) {
       return <EmptyState />;
     }
     return (
       <ConversationTimeline
-        messages={messages}
-        onLongPressMessage={setActionTarget}
-        onRetryMessage={(message) => ConversationController.retryMessage(message.id)}
-        onPressRecommendation={handlePressRecommendation}
-        onSetRating={(id, rating) => ConversationController.setRating(id, rating)}
-        onToggleReason={(id, reason) => ConversationController.toggleReason(id, reason)}
+        onLongPress={onLongPressMessage}
+        onRetry={onRetryMessage}
+        onPressRecommendation={onPressRecommendation}
+        onToggleReaction={onToggleReaction}
+        onToggleReason={onToggleReason}
       />
     );
   };
@@ -111,8 +169,8 @@ const ConversationScreen: React.FC = () => {
           <View style={[styles.composerArea, { paddingBottom: insets.bottom }]}>
             <Composer
               reply={reply}
-              onSend={(text) => ConversationController.sendMessage(text, reply)}
-              onClearReply={() => ConversationController.clearReply()}
+              onSend={handleSend}
+              onClearReply={() => setReplyTargetId(null)}
             />
           </View>
         ) : null}

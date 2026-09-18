@@ -1,17 +1,19 @@
 import React from 'react';
 import { useAppContext } from '../../../../context/appContext';
+import { LOCAL_USER_ID } from '../../../../data/seed';
 import ChatBubble from './ChatBubble';
 import FeedbackBar from './FeedbackBar';
 import RecommendationCarousel from '../recommendations/RecommendationCarousel';
 import { MessageComponentProps } from './messageTypes';
 
-/** Left-aligned AI message carrying recommendations + feedback controls. */
+/** Left-aligned AI message carrying recommendations + reaction controls. */
 const AIMessage: React.FC<MessageComponentProps> = ({
   message,
+  replyTo,
   isGroupStart,
   onLongPress,
   onPressRecommendation,
-  onSetRating,
+  onToggleReaction,
   onToggleReason,
 }) => {
   const { colors } = useAppContext();
@@ -25,9 +27,10 @@ const AIMessage: React.FC<MessageComponentProps> = ({
         />
       )}
       <FeedbackBar
-        feedback={message.feedback}
-        onSetRating={(rating) => onSetRating?.(message.id, rating)}
-        onToggleReason={(reason) => onToggleReason?.(message.id, reason)}
+        reactions={message.reactions}
+        localUserId={LOCAL_USER_ID}
+        onToggleReaction={(reactionType) => onToggleReaction?.(message.messageId, reactionType)}
+        onToggleReason={(reason) => onToggleReason?.(message.messageId, reason)}
       />
     </>
   );
@@ -41,7 +44,7 @@ const AIMessage: React.FC<MessageComponentProps> = ({
       timestamp={message.createdAt}
       bubbleColor={colors.SURFACE.SECONDARY}
       textColor={colors.TEXT.PRIMARY}
-      replyTo={message.replyTo}
+      replyTo={replyTo}
       onLongPress={onLongPress ? () => onLongPress(message) : undefined}
       extras={extras}
     >

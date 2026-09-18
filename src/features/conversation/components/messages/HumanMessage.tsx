@@ -7,6 +7,7 @@ import useStyles from './styles';
 /** Left-aligned message from a human astrologer, visually distinct from the AI. */
 const HumanMessage: React.FC<MessageComponentProps> = ({
   message,
+  replyTo,
   isGroupStart,
   onLongPress,
 }) => {
@@ -23,7 +24,7 @@ const HumanMessage: React.FC<MessageComponentProps> = ({
       bubbleColor={colors.SURFACE.PRIMARY}
       textColor={colors.TEXT.PRIMARY}
       bubbleStyle={styles.humanBubble}
-      replyTo={message.replyTo}
+      replyTo={replyTo}
       onLongPress={onLongPress ? () => onLongPress(message) : undefined}
     >
       {message.text}

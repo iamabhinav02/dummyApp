@@ -3,13 +3,15 @@ import { Pressable, View } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { useAppContext } from '../../../../context/appContext';
 import Text from '../../../../common/ui/Text';
-import { FEEDBACK_RATING, FEEDBACK_REASON } from '../../../../enums/conversation';
-import { FeedbackRating, FeedbackReason, MessageFeedback } from '../../../../types/conversation';
+import { FEEDBACK_REASON, REACTION_TYPE } from '../../../../enums/conversation';
+import { FeedbackReason, ReactionType, Reaction } from '../../../../types/conversation';
 import useStyles from './styles';
 
 type Props = {
-  feedback?: MessageFeedback;
-  onSetRating: (rating: FeedbackRating) => void;
+  reactions: Reaction[];
+  /** The viewer's userId, used to derive their own like/dislike + reasons. */
+  localUserId: string;
+  onToggleReaction: (reactionType: ReactionType) => void;
   onToggleReason: (reason: FeedbackReason) => void;
 };
 
@@ -20,40 +22,54 @@ const REASONS: { key: FeedbackReason; label: string }[] = [
   { key: FEEDBACK_REASON.TOO_LONG, label: 'Too Long' },
 ];
 
-/** Like / dislike control for AI messages; dislike expands reason chips. */
-const FeedbackBar: React.FC<Props> = ({ feedback, onSetRating, onToggleReason }) => {
+/**
+ * Like / dislike control for AI messages, backed by the viewer's reactions;
+ * a dislike expands reason chips (stored as that reaction's comments).
+ */
+const FeedbackBar: React.FC<Props> = ({
+  reactions,
+  localUserId,
+  onToggleReaction,
+  onToggleReason,
+}) => {
   const { colors } = useAppContext();
   const styles = useStyles(colors);
-  const rating = feedback?.rating;
-  const reasons = feedback?.reasons ?? [];
 
-  const renderRating = (value: FeedbackRating, activeIcon: string, idleIcon: string) => {
-    const active = rating === value;
-    return (
-      <Pressable
-        onPress={() => onSetRating(value)}
-        style={[styles.ratingButton, active && styles.ratingButtonActive]}
-        accessibilityRole="button"
-        accessibilityState={{ selected: active }}
-        accessibilityLabel={value === FEEDBACK_RATING.LIKE ? 'Like response' : 'Dislike response'}
-      >
-        <Icon
-          source={active ? activeIcon : idleIcon}
-          size={18}
-          color={active ? colors.TEXT.INVERSE : colors.TEXT.SECONDARY}
-        />
-      </Pressable>
-    );
-  };
+  const mine = reactions.filter((r) => r.userId === localUserId);
+  const dislike = mine.find((r) => r.reactionType === REACTION_TYPE.DISLIKE);
+  const hasLike = mine.some((r) => r.reactionType === REACTION_TYPE.LIKE);
+  const reasons = dislike?.comments ?? [];
+
+  const renderRating = (
+    value: ReactionType,
+    active: boolean,
+    activeIcon: string,
+    idleIcon: string,
+    label: string,
+  ) => (
+    <Pressable
+      onPress={() => onToggleReaction(value)}
+      style={[styles.ratingButton, active && styles.ratingButtonActive]}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={label}
+    >
+      <Icon
+        source={active ? activeIcon : idleIcon}
+        size={18}
+        color={active ? colors.TEXT.INVERSE : colors.TEXT.SECONDARY}
+      />
+    </Pressable>
+  );
 
   return (
     <View style={styles.feedbackContainer}>
       <View style={styles.ratingRow}>
-        {renderRating(FEEDBACK_RATING.LIKE, 'thumb-up', 'thumb-up-outline')}
-        {renderRating(FEEDBACK_RATING.DISLIKE, 'thumb-down', 'thumb-down-outline')}
+        {renderRating(REACTION_TYPE.LIKE, hasLike, 'thumb-up', 'thumb-up-outline', 'Like response')}
+        {renderRating(REACTION_TYPE.DISLIKE, !!dislike, 'thumb-down', 'thumb-down-outline', 'Dislike response')}
       </View>
 
-      {rating === FEEDBACK_RATING.DISLIKE && (
+      {!!dislike && (
         <View style={styles.chipsRow}>
           {REASONS.map((reason) => {
             const selected = reasons.includes(reason.key);

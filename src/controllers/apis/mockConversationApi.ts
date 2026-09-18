@@ -1,6 +1,6 @@
-import { MESSAGE_AUTHOR, RECOMMENDATION_TYPE } from '../../enums/conversation';
-import { ConversationMessage, Recommendation } from '../../types/conversation';
-import { buildSeedConversation } from '../../data/seed';
+import { MESSAGE_AUTHOR, RECOMMENDATION_TYPE, SENDER_ID } from '../../enums/conversation';
+import { Message, NormalizedConversation, Recommendation } from '../../types/conversation';
+import { buildSeedState } from '../../data/seed';
 
 /**
  * Mock backend for the conversation experience.
@@ -53,15 +53,15 @@ const AI_REPLIES: { text: string; recommendations?: Recommendation[] }[] = [
 ];
 
 export const mockConversationApi = {
-  /** Loads the existing conversation history. */
-  async fetchConversation(): Promise<ConversationMessage[]> {
+  /** Loads the existing conversation history as a normalized snapshot. */
+  async fetchConversation(): Promise<NormalizedConversation> {
     await delay(randomLatency());
 
     if (SIMULATE_INITIAL_LOAD_FAILURE) {
       throw new Error('Unable to load conversation.');
     }
 
-    return buildSeedConversation();
+    return buildSeedState();
   },
 
   /**
@@ -69,7 +69,7 @@ export const mockConversationApi = {
    * Rejects to simulate a transient network failure so the UI can surface
    * the Failed / Retry state.
    */
-  async sendMessage(_text: string): Promise<ConversationMessage> {
+  async sendMessage(_text: string, conversationId: string): Promise<Message> {
     await delay(randomLatency());
 
     if (Math.random() < SEND_FAILURE_RATE) {
@@ -80,11 +80,14 @@ export const mockConversationApi = {
     replyCounter += 1;
 
     return {
-      id: `ai-${Date.now()}`,
+      messageId: `ai-${Date.now()}`,
+      conversationId,
+      senderId: SENDER_ID.AI,
       type: MESSAGE_AUTHOR.AI,
       text: reply.text,
       createdAt: Date.now(),
-      recommendations: reply.recommendations,
+      reactions: [],
+      recommendations: reply.recommendations ?? [],
     };
   },
 };

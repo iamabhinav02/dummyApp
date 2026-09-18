@@ -3,15 +3,15 @@ import { Modal, Pressable, View } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { useAppContext } from '../../../../context/appContext';
 import Text from '../../../../common/ui/Text';
-import { ConversationMessage } from '../../../../types/conversation';
+import { Message } from '../../../../types/conversation';
 import useStyles from './styles';
 
 type Props = {
-  message: ConversationMessage | null;
+  message: Message | null;
   onClose: () => void;
-  onReply: (message: ConversationMessage) => void;
-  onCopy: (message: ConversationMessage) => void;
-  onDelete: (message: ConversationMessage) => void;
+  onReply: (message: Message) => void;
+  onCopy: (message: Message) => void;
+  onDelete: (message: Message) => void;
 };
 
 type Action = {
@@ -19,7 +19,7 @@ type Action = {
   label: string;
   icon: string;
   destructive?: boolean;
-  run: (message: ConversationMessage) => void;
+  run: (message: Message) => void;
 };
 
 /** Long-press action sheet for a message (Reply / Copy / Delete). */

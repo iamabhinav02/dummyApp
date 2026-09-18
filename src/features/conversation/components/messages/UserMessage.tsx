@@ -7,6 +7,7 @@ import { MessageComponentProps } from './messageTypes';
 /** Right-aligned user message with delivery status + retry. */
 const UserMessage: React.FC<MessageComponentProps> = ({
   message,
+  replyTo,
   isGroupStart,
   onLongPress,
   onRetry,
@@ -21,7 +22,7 @@ const UserMessage: React.FC<MessageComponentProps> = ({
       timestamp={message.createdAt}
       bubbleColor={colors.BUTTONS.PRIMARY}
       textColor={colors.TEXT.INVERSE}
-      replyTo={message.replyTo}
+      replyTo={replyTo}
       onLongPress={onLongPress ? () => onLongPress(message) : undefined}
       extras={
         <MessageStatusIndicator

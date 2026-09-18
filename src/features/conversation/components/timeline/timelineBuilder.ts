@@ -1,17 +1,19 @@
 import moment from 'moment';
 import { MESSAGE_AUTHOR, TIMELINE_ITEM_KIND } from '../../../../enums/conversation';
-import { ConversationMessage } from '../../../../types/conversation';
+import { Message } from '../../../../types/conversation';
 
 /**
- * A renderable row in the timeline: either a date separator or a message with
- * grouping metadata. Precomputing this keeps the list's renderItem trivial.
+ * A renderable row in the timeline: either a date separator or a message
+ * reference with grouping metadata. The MESSAGE variant carries only the
+ * `messageId` (not the message body) — the row self-subscribes to its message
+ * so content changes (reactions, status) never rebuild this skeleton.
  */
 export type TimelineItem =
   | { kind: TIMELINE_ITEM_KIND.DATE; id: string; label: string }
   | {
       kind: TIMELINE_ITEM_KIND.MESSAGE;
       id: string;
-      message: ConversationMessage;
+      messageId: string;
       isGroupStart: boolean;
       isGroupEnd: boolean;
     };
@@ -30,7 +32,7 @@ const dateLabel = (timestamp: number): string => {
   return value.format('MMMM D, YYYY');
 };
 
-const areGroupable = (a?: ConversationMessage, b?: ConversationMessage): boolean => {
+const areGroupable = (a?: Message, b?: Message): boolean => {
   if (!a || !b) {
     return false;
   }
@@ -43,11 +45,23 @@ const areGroupable = (a?: ConversationMessage, b?: ConversationMessage): boolean
 };
 
 /**
- * Transforms a chronological message list into timeline rows, inserting date
+ * Transforms the ordered messageIds into timeline rows, inserting date
  * separators on day changes and flagging the first/last message in each group.
+ *
+ * Reads only immutable fields (createdAt, type) via `getMessage`, so it is safe
+ * to memoize on `messageOrder` alone: those fields — and therefore the skeleton
+ * — change only when a message is added/removed, which is exactly when
+ * `messageOrder` gets a new reference.
  */
-export const buildTimeline = (messages: ConversationMessage[]): TimelineItem[] => {
-  const sorted = [...messages].sort((a, b) => a.createdAt - b.createdAt);
+export const buildTimelineSkeleton = (
+  messageOrder: string[],
+  getMessage: (id: string) => Message | undefined,
+): TimelineItem[] => {
+  const sorted = messageOrder
+    .map(getMessage)
+    .filter((message): message is Message => !!message)
+    .sort((a, b) => a.createdAt - b.createdAt);
+
   const items: TimelineItem[] = [];
 
   sorted.forEach((message, index) => {
@@ -58,13 +72,17 @@ export const buildTimeline = (messages: ConversationMessage[]): TimelineItem[] =
       !previous || !moment(previous.createdAt).isSame(message.createdAt, 'day');
 
     if (startsNewDay) {
-      items.push({ kind: TIMELINE_ITEM_KIND.DATE, id: `date-${message.id}`, label: dateLabel(message.createdAt) });
+      items.push({
+        kind: TIMELINE_ITEM_KIND.DATE,
+        id: `date-${message.messageId}`,
+        label: dateLabel(message.createdAt),
+      });
     }
 
     items.push({
       kind: TIMELINE_ITEM_KIND.MESSAGE,
-      id: message.id,
-      message,
+      id: message.messageId,
+      messageId: message.messageId,
       isGroupStart: startsNewDay || !areGroupable(previous, message),
       isGroupEnd: !areGroupable(message, next),
     });
