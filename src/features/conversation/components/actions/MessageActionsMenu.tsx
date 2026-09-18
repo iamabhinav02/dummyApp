@@ -1,8 +1,9 @@
 import React from 'react';
-import { Modal, Pressable, View } from 'react-native';
+import { Pressable } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { useAppContext } from '../../../../context/appContext';
 import Text from '../../../../common/ui/Text';
+import BottomSheet from '../../../../common/ui/BottomSheet';
 import { Message } from '../../../../types/conversation';
 import useStyles from './styles';
 
@@ -40,39 +41,28 @@ const MessageActionsMenu: React.FC<Props> = ({
   ];
 
   return (
-    <Modal
-      visible={!!message}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        {/* Stop propagation so taps on the sheet don't dismiss it. */}
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <View style={styles.handle} />
-          {actions.map((action) => (
-            <Pressable
-              key={action.key}
-              style={styles.action}
-              onPress={() => message && action.run(message)}
-              accessibilityRole="button"
-            >
-              <Icon
-                source={action.icon}
-                size={20}
-                color={action.destructive ? colors.STATUS.DANGER : colors.TEXT.PRIMARY}
-              />
-              <Text
-                variant="body"
-                style={action.destructive ? styles.actionLabelDestructive : styles.actionLabel}
-              >
-                {action.label}
-              </Text>
-            </Pressable>
-          ))}
+    <BottomSheet visible={!!message} onClose={onClose}>
+      {actions.map((action) => (
+        <Pressable
+          key={action.key}
+          style={styles.action}
+          onPress={() => message && action.run(message)}
+          accessibilityRole="button"
+        >
+          <Icon
+            source={action.icon}
+            size={20}
+            color={action.destructive ? colors.STATUS.DANGER : colors.TEXT.PRIMARY}
+          />
+          <Text
+            variant="body"
+            style={action.destructive ? styles.actionLabelDestructive : styles.actionLabel}
+          >
+            {action.label}
+          </Text>
         </Pressable>
-      </Pressable>
-    </Modal>
+      ))}
+    </BottomSheet>
   );
 };
 

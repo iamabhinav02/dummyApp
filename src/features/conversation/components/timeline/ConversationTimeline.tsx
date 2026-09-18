@@ -6,9 +6,9 @@ import { TIMELINE_ITEM_KIND } from '../../../../enums/conversation';
 import { useAppContext } from '../../../../context/appContext';
 import { ICombinedAppState } from '../../../../store';
 import CommonReduxStore from '../../../../store/commonStore';
+import Divider from '../../../../common/ui/Divider';
 import { MessageRowHandlers } from '../messages/messageTypes';
 import MessageRow from '../messages/MessageRow';
-import DateSeparator from './DateSeparator';
 import { buildTimelineSkeleton, TimelineItem } from './timelineBuilder';
 import useStyles from './styles';
 
@@ -54,7 +54,7 @@ const ConversationTimeline: React.FC<Props> = (handlers) => {
   const renderItem = useCallback(
     ({ item }: { item: TimelineItem }) => {
       if (item.kind === TIMELINE_ITEM_KIND.DATE) {
-        return <DateSeparator label={item.label} />;
+        return <Divider label={item.label} />;
       }
 
       return (

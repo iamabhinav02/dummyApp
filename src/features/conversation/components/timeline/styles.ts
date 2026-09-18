@@ -2,7 +2,8 @@ import { StyleSheet } from 'react-native';
 import { IColors } from '../../../../constants/colors';
 import { spacing } from '../../../../common/ui/tokens';
 
-const useStyles = (colors: IColors) => StyleSheet.create({
+// `_colors` kept so this hook matches the (colors) signature of the other useStyles hooks.
+const useStyles = (_colors: IColors) => StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -13,21 +14,6 @@ const useStyles = (colors: IColors) => StyleSheet.create({
   },
   rowGrouped: {
     marginTop: spacing.xs,
-  },
-  // Date separator
-  separator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginVertical: spacing.md,
-  },
-  separatorLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.SURFACE.TERTIARY,
-  },
-  separatorLabel: {
-    color: colors.TEXT.TERTIARY,
   },
 });
 

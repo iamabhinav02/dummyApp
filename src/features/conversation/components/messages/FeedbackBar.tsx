@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, View } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { useAppContext } from '../../../../context/appContext';
-import Text from '../../../../common/ui/Text';
+import Chip from '../../../../common/ui/Chip';
 import { FEEDBACK_REASON, REACTION_TYPE } from '../../../../enums/conversation';
 import { FeedbackReason, ReactionType, Reaction } from '../../../../types/conversation';
 import useStyles from './styles';
@@ -71,25 +71,14 @@ const FeedbackBar: React.FC<Props> = ({
 
       {!!dislike && (
         <View style={styles.chipsRow}>
-          {REASONS.map((reason) => {
-            const selected = reasons.includes(reason.key);
-            return (
-              <Pressable
-                key={reason.key}
-                onPress={() => onToggleReason(reason.key)}
-                style={[styles.chip, selected && styles.chipSelected]}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-              >
-                <Text
-                  variant="label"
-                  style={selected ? styles.chipTextSelected : styles.chipText}
-                >
-                  {reason.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+          {REASONS.map((reason) => (
+            <Chip
+              key={reason.key}
+              label={reason.label}
+              selected={reasons.includes(reason.key)}
+              onPress={() => onToggleReason(reason.key)}
+            />
+          ))}
         </View>
       )}
     </View>
