@@ -1,3 +1,8 @@
+import {
+  MESSAGE_AUTHOR,
+  MESSAGE_STATUS,
+  RECOMMENDATION_TYPE,
+} from '../enums/conversation';
 import { ConversationMessage } from '../types/conversation';
 
 /**
@@ -8,29 +13,29 @@ import { ConversationMessage } from '../types/conversation';
 const SEED_CONTENT: Omit<ConversationMessage, 'createdAt'>[] = [
   {
     id: '1',
-    type: 'system',
+    type: MESSAGE_AUTHOR.SYSTEM,
     text: 'Your session with AI Astrologer has started.',
   },
   {
     id: '2',
-    type: 'user',
+    type: MESSAGE_AUTHOR.USER,
     text: 'Can you tell me about my career this year?',
-    status: 'sent',
+    status: MESSAGE_STATUS.SENT,
   },
   {
     id: '3',
-    type: 'ai',
+    type: MESSAGE_AUTHOR.AI,
     text: 'I can already see a strong Saturn influence in your chart. Based on this, here are a few recommendations that may help you.',
     recommendations: [
-      { id: '1', type: 'gemstone', title: 'Blue Sapphire', subtitle: 'Recommended for Saturn' },
-      { id: '2', type: 'tarot', title: 'Career Tarot Reading' },
-      { id: '3', type: 'consultation', title: 'Talk to an Astrologer' },
-      { id: '4', type: 'article', title: 'Understanding Saturn Mahadasha' },
+      { id: '1', type: RECOMMENDATION_TYPE.GEMSTONE, title: 'Blue Sapphire', subtitle: 'Recommended for Saturn' },
+      { id: '2', type: RECOMMENDATION_TYPE.TAROT, title: 'Career Tarot Reading' },
+      { id: '3', type: RECOMMENDATION_TYPE.CONSULTATION, title: 'Talk to an Astrologer' },
+      { id: '4', type: RECOMMENDATION_TYPE.ARTICLE, title: 'Understanding Saturn Mahadasha' },
     ],
   },
   {
     id: '4',
-    type: 'human',
+    type: MESSAGE_AUTHOR.HUMAN,
     text: 'I also recommend focusing on your upcoming Jupiter transit.',
   },
 ];

@@ -1,3 +1,4 @@
+import { MESSAGE_AUTHOR, RECOMMENDATION_TYPE } from '../../enums/conversation';
 import { ConversationMessage, Recommendation } from '../../types/conversation';
 import { buildSeedConversation } from '../../data/seed';
 
@@ -30,23 +31,23 @@ const AI_REPLIES: { text: string; recommendations?: Recommendation[] }[] = [
   {
     text: 'The planetary alignment looks favourable. Here are a couple of paths you can explore next.',
     recommendations: [
-      { id: 'r-tarot', type: 'tarot', title: 'Yes / No Tarot Pull' },
-      { id: 'r-consult', type: 'consultation', title: 'Talk to an Astrologer' },
+      { id: 'r-tarot', type: RECOMMENDATION_TYPE.TAROT, title: 'Yes / No Tarot Pull' },
+      { id: 'r-consult', type: RECOMMENDATION_TYPE.CONSULTATION, title: 'Talk to an Astrologer' },
     ],
   },
   {
     text: 'Mercury supports clear communication for you right now. A quick remedy can amplify it.',
     recommendations: [
-      { id: 'r-remedy', type: 'remedy', title: 'Wednesday Green Remedy', subtitle: 'For Mercury' },
-      { id: 'r-panchang', type: 'panchang', title: "Today's Panchang" },
+      { id: 'r-remedy', type: RECOMMENDATION_TYPE.REMEDY, title: 'Wednesday Green Remedy', subtitle: 'For Mercury' },
+      { id: 'r-panchang', type: RECOMMENDATION_TYPE.PANCHANG, title: "Today's Panchang" },
     ],
   },
   {
     text: 'That is a thoughtful question. Let me share what the stars suggest.',
     recommendations: [
-      { id: 'r-gem', type: 'gemstone', title: 'Yellow Sapphire', subtitle: 'For Jupiter' },
-      { id: 'r-article', type: 'article', title: 'Reading Your Birth Chart' },
-      { id: 'r-promo', type: 'promotion', title: '20% off your first reading' },
+      { id: 'r-gem', type: RECOMMENDATION_TYPE.GEMSTONE, title: 'Yellow Sapphire', subtitle: 'For Jupiter' },
+      { id: 'r-article', type: RECOMMENDATION_TYPE.ARTICLE, title: 'Reading Your Birth Chart' },
+      { id: 'r-promo', type: RECOMMENDATION_TYPE.PROMOTION, title: '20% off your first reading' },
     ],
   },
 ];
@@ -80,7 +81,7 @@ export const mockConversationApi = {
 
     return {
       id: `ai-${Date.now()}`,
-      type: 'ai',
+      type: MESSAGE_AUTHOR.AI,
       text: reply.text,
       createdAt: Date.now(),
       recommendations: reply.recommendations,

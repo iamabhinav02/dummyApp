@@ -15,7 +15,7 @@ enableScreens();
 
 const App = () => {
   useEffect(() => {
-    ConversationController.loadInitial()
+    ConversationController.hydrate();
   }, []);
 
   return (

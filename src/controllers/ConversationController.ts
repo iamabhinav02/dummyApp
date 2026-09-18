@@ -1,6 +1,14 @@
 import { CONVERSATION } from '../reducers/actions';
+import { STORAGE_KEYS } from '../constants/storage';
 import CommonReduxStore from '../store/commonStore';
 import { mockConversationApi } from './apis/mockConversationApi';
+import { AsyncStorageController } from './AsyncStorageController';
+import {
+  FEEDBACK_RATING,
+  LOAD_STATUS,
+  MESSAGE_AUTHOR,
+  MESSAGE_STATUS,
+} from '../enums/conversation';
 import {
   ConversationMessage,
   ConversationState,
@@ -34,16 +42,43 @@ const patchMessage = (messageId: string, patch: Partial<ConversationMessage>) =>
   store().dispatch({ type: CONVERSATION.PATCH_MESSAGE, payload: { messageId, patch } });
 };
 
+/**
+ * Persist the conversation, keeping only settled messages so `sending`/`failed`
+ * drafts never rehydrate on the next launch.
+ */
+const persist = () => {
+  const settled = getState().messages.filter(
+    (message) => message.status !== MESSAGE_STATUS.SENDING && message.status !== MESSAGE_STATUS.FAILED,
+  );
+  return AsyncStorageController.set(STORAGE_KEYS.CONVERSATION_MESSAGES, settled);
+};
+
 export const ConversationController = {
+  /** Called on launch: restore persisted history, otherwise load from the API. */
+  async hydrate() {
+    const stored = await AsyncStorageController.get<ConversationMessage[]>(
+      STORAGE_KEYS.CONVERSATION_MESSAGES,
+    );
+
+    if (stored && stored.length) {
+      setMessages(stored);
+      setLoadStatus(LOAD_STATUS.READY);
+      return;
+    }
+
+    await this.loadInitial();
+  },
+
   /** Fetches the conversation, driving loading -> ready / error transitions. */
   async loadInitial() {
-    setLoadStatus('loading');
+    setLoadStatus(LOAD_STATUS.LOADING);
     try {
       const messages = await mockConversationApi.fetchConversation();
       setMessages(messages);
-      setLoadStatus('ready');
+      setLoadStatus(LOAD_STATUS.READY);
+      persist();
     } catch {
-      setLoadStatus('error');
+      setLoadStatus(LOAD_STATUS.ERROR);
     }
   },
 
@@ -61,10 +96,10 @@ export const ConversationController = {
 
     const optimistic: ConversationMessage = {
       id: createId(),
-      type: 'user',
+      type: MESSAGE_AUTHOR.USER,
       text: trimmed,
       createdAt: Date.now(),
-      status: 'sending',
+      status: MESSAGE_STATUS.SENDING,
       replyTo: replyTo ?? undefined,
     };
 
@@ -79,23 +114,25 @@ export const ConversationController = {
     if (!message) {
       return;
     }
-    patchMessage(messageId, { status: 'sending' });
-    await this.deliver({ ...message, status: 'sending' });
+    patchMessage(messageId, { status: MESSAGE_STATUS.SENDING });
+    await this.deliver({ ...message, status: MESSAGE_STATUS.SENDING });
   },
 
   /** Shared send pipeline: simulate the request, then reconcile state. */
   async deliver(message: ConversationMessage) {
     try {
       const aiReply = await mockConversationApi.sendMessage(message.text);
-      patchMessage(message.id, { status: 'sent' });
+      patchMessage(message.id, { status: MESSAGE_STATUS.SENT });
       addMessage(aiReply);
+      persist();
     } catch {
-      patchMessage(message.id, { status: 'failed' });
+      patchMessage(message.id, { status: MESSAGE_STATUS.FAILED });
     }
   },
 
   deleteMessage(messageId: string) {
     store().dispatch({ type: CONVERSATION.REMOVE_MESSAGE, payload: { messageId } });
+    persist();
   },
 
   /** Toggle like/dislike on an AI message. Switching away from dislike clears reasons. */
@@ -107,9 +144,10 @@ export const ConversationController = {
 
     const current = message.feedback ?? { reasons: [] };
     const nextRating = current.rating === rating ? undefined : rating;
-    const nextReasons = nextRating === 'dislike' ? current.reasons : [];
+    const nextReasons = nextRating === FEEDBACK_RATING.DISLIKE ? current.reasons : [];
 
     patchMessage(messageId, { feedback: { rating: nextRating, reasons: nextReasons } });
+    persist();
   },
 
   /** Toggle a dislike reason chip. */
@@ -126,6 +164,7 @@ export const ConversationController = {
       : [...current.reasons, reason];
 
     patchMessage(messageId, { feedback: { ...current, reasons: nextReasons } });
+    persist();
   },
 
   /** Set the active reply target shown above the composer. */

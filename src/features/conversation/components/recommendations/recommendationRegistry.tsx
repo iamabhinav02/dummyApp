@@ -1,6 +1,7 @@
 import React from 'react';
 import Text from '../../../../common/ui/Text';
 import { AccentColor } from '../../../../constants/colors';
+import { RECOMMENDATION_TYPE } from '../../../../enums/conversation';
 import {
   KnownRecommendationType,
   Recommendation,
@@ -31,8 +32,8 @@ export type RecommendationDescriptor = {
 };
 
 const registry: Record<KnownRecommendationType, RecommendationDescriptor> = {
-  gemstone: { icon: 'diamond-stone', accentKey: 'BLUE', ctaLabel: 'View gemstone' },
-  tarot: {
+  [RECOMMENDATION_TYPE.GEMSTONE]: { icon: 'diamond-stone', accentKey: 'BLUE', ctaLabel: 'View gemstone' },
+  [RECOMMENDATION_TYPE.TAROT]: {
     icon: 'cards-playing-outline',
     accentKey: 'VIOLET',
     ctaLabel: 'Pull cards',
@@ -46,11 +47,11 @@ const registry: Record<KnownRecommendationType, RecommendationDescriptor> = {
       </>
     ),
   },
-  consultation: { icon: 'account-voice', accentKey: 'GREEN', ctaLabel: 'Talk now' },
-  article: { icon: 'book-open-variant', accentKey: 'AMBER', ctaLabel: 'Read article' },
-  promotion: { icon: 'tag-heart', accentKey: 'ROSE', ctaLabel: 'Claim offer' },
-  remedy: { icon: 'candle', accentKey: 'TEAL', ctaLabel: 'View remedy' },
-  panchang: { icon: 'calendar-star', accentKey: 'INDIGO', ctaLabel: 'Open panchang' },
+  [RECOMMENDATION_TYPE.CONSULTATION]: { icon: 'account-voice', accentKey: 'GREEN', ctaLabel: 'Talk now' },
+  [RECOMMENDATION_TYPE.ARTICLE]: { icon: 'book-open-variant', accentKey: 'AMBER', ctaLabel: 'Read article' },
+  [RECOMMENDATION_TYPE.PROMOTION]: { icon: 'tag-heart', accentKey: 'ROSE', ctaLabel: 'Claim offer' },
+  [RECOMMENDATION_TYPE.REMEDY]: { icon: 'candle', accentKey: 'TEAL', ctaLabel: 'View remedy' },
+  [RECOMMENDATION_TYPE.PANCHANG]: { icon: 'calendar-star', accentKey: 'INDIGO', ctaLabel: 'Open panchang' },
 };
 
 /** Generic descriptor for unregistered / future recommendation types. */

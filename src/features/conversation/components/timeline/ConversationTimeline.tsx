@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef } from 'react';
 import { View } from 'react-native';
 import { FlashList, FlashListRef } from '@shopify/flash-list';
+import { TIMELINE_ITEM_KIND } from '../../../../enums/conversation';
 import { useAppContext } from '../../../../context/appContext';
 import {
   ConversationMessage,
@@ -51,7 +52,7 @@ const ConversationTimeline: React.FC<Props> = ({
 
   const renderItem = useCallback(
     ({ item }: { item: TimelineItem }) => {
-      if (item.kind === 'date') {
+      if (item.kind === TIMELINE_ITEM_KIND.DATE) {
         return <DateSeparator label={item.label} />;
       }
 

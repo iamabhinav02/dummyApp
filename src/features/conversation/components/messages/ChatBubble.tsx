@@ -4,7 +4,8 @@ import moment from 'moment';
 import { Icon } from 'react-native-paper';
 import { useAppContext } from '../../../../context/appContext';
 import Text from '../../../../common/ui/Text';
-import { ReplyContext } from '../../../../types/conversation';
+import { MESSAGE_AUTHOR } from '../../../../enums/conversation';
+import { MessageAuthorType, ReplyContext } from '../../../../types/conversation';
 import useStyles, { createBubbleColorStyles } from './styles';
 
 type Props = {
@@ -24,11 +25,11 @@ type Props = {
   children: React.ReactNode;
 };
 
-const authorName: Record<string, string> = {
-  user: 'You',
-  ai: 'AI Astrologer',
-  human: 'Astrologer',
-  system: 'System',
+const authorName: Record<MessageAuthorType, string> = {
+  [MESSAGE_AUTHOR.USER]: 'You',
+  [MESSAGE_AUTHOR.AI]: 'AI Astrologer',
+  [MESSAGE_AUTHOR.HUMAN]: 'Astrologer',
+  [MESSAGE_AUTHOR.SYSTEM]: 'System',
 };
 
 const ChatBubble: React.FC<Props> = ({

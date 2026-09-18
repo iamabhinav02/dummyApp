@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { useAppContext } from '../../../../context/appContext';
 import Text from '../../../../common/ui/Text';
+import { FEEDBACK_RATING, FEEDBACK_REASON } from '../../../../enums/conversation';
 import { FeedbackRating, FeedbackReason, MessageFeedback } from '../../../../types/conversation';
 import useStyles from './styles';
 
@@ -13,10 +14,10 @@ type Props = {
 };
 
 const REASONS: { key: FeedbackReason; label: string }[] = [
-  { key: 'inaccurate', label: 'Inaccurate' },
-  { key: 'too_generic', label: 'Too Generic' },
-  { key: 'didnt_help', label: "Didn't Help" },
-  { key: 'too_long', label: 'Too Long' },
+  { key: FEEDBACK_REASON.INACCURATE, label: 'Inaccurate' },
+  { key: FEEDBACK_REASON.TOO_GENERIC, label: 'Too Generic' },
+  { key: FEEDBACK_REASON.DIDNT_HELP, label: "Didn't Help" },
+  { key: FEEDBACK_REASON.TOO_LONG, label: 'Too Long' },
 ];
 
 /** Like / dislike control for AI messages; dislike expands reason chips. */
@@ -34,7 +35,7 @@ const FeedbackBar: React.FC<Props> = ({ feedback, onSetRating, onToggleReason })
         style={[styles.ratingButton, active && styles.ratingButtonActive]}
         accessibilityRole="button"
         accessibilityState={{ selected: active }}
-        accessibilityLabel={value === 'like' ? 'Like response' : 'Dislike response'}
+        accessibilityLabel={value === FEEDBACK_RATING.LIKE ? 'Like response' : 'Dislike response'}
       >
         <Icon
           source={active ? activeIcon : idleIcon}
@@ -48,11 +49,11 @@ const FeedbackBar: React.FC<Props> = ({ feedback, onSetRating, onToggleReason })
   return (
     <View style={styles.feedbackContainer}>
       <View style={styles.ratingRow}>
-        {renderRating('like', 'thumb-up', 'thumb-up-outline')}
-        {renderRating('dislike', 'thumb-down', 'thumb-down-outline')}
+        {renderRating(FEEDBACK_RATING.LIKE, 'thumb-up', 'thumb-up-outline')}
+        {renderRating(FEEDBACK_RATING.DISLIKE, 'thumb-down', 'thumb-down-outline')}
       </View>
 
-      {rating === 'dislike' && (
+      {rating === FEEDBACK_RATING.DISLIKE && (
         <View style={styles.chipsRow}>
           {REASONS.map((reason) => {
             const selected = reasons.includes(reason.key);

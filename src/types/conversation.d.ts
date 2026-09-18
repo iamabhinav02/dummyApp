@@ -3,33 +3,36 @@
  *
  * These types are intentionally open-ended so new "conversation experiences"
  * (recommendation types, author types) can be added without reshaping the core.
+ * The concrete value sets live as enums in `src/enums/conversation.ts`.
  */
+import {
+  FEEDBACK_RATING,
+  FEEDBACK_REASON,
+  LOAD_STATUS,
+  MESSAGE_AUTHOR,
+  MESSAGE_STATUS,
+  RECOMMENDATION_TYPE,
+} from '../enums/conversation';
 
 /** Who authored a message in the timeline. */
-export type MessageAuthorType = 'user' | 'ai' | 'human' | 'system';
+export type MessageAuthorType = MESSAGE_AUTHOR;
 
 /** Delivery lifecycle for optimistic (user-sent) messages. */
-export type MessageDeliveryStatus = 'sending' | 'sent' | 'failed';
+export type MessageDeliveryStatus = MESSAGE_STATUS;
 
-export type FeedbackRating = 'like' | 'dislike';
+export type FeedbackRating = FEEDBACK_RATING;
 
-export type FeedbackReason = 'inaccurate' | 'too_generic' | 'didnt_help' | 'too_long';
+export type FeedbackReason = FEEDBACK_REASON;
+
+/** Well-known recommendation experiences with a dedicated renderer. */
+export type KnownRecommendationType = RECOMMENDATION_TYPE;
 
 /**
- * Recommendation type is a well-known union PLUS an open string, so the backend
- * can introduce future experiences the client renders via a fallback until a
- * dedicated renderer is registered. This is the extensibility seam.
+ * A known experience PLUS an open string, so the backend can introduce future
+ * experiences the client renders via a fallback until a dedicated renderer is
+ * registered. This is the extensibility seam.
  */
-export type KnownRecommendationType =
-  | 'gemstone'
-  | 'tarot'
-  | 'consultation'
-  | 'article'
-  | 'promotion'
-  | 'remedy'
-  | 'panchang';
-
-export type RecommendationType = KnownRecommendationType | (string & {});
+export type RecommendationType = RECOMMENDATION_TYPE | (string & {});
 
 export type Recommendation = {
   id: string;
@@ -68,7 +71,7 @@ export type ConversationMessage = {
 };
 
 /** Status of the initial conversation load (loading / empty / error handling). */
-export type ConversationLoadStatus = 'idle' | 'loading' | 'ready' | 'error';
+export type ConversationLoadStatus = LOAD_STATUS;
 
 export type ConversationState = {
   loadStatus: ConversationLoadStatus;

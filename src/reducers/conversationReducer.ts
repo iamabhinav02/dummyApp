@@ -1,9 +1,10 @@
 import { IActionState } from '../types/actions';
 import { CONVERSATION } from './actions';
+import { LOAD_STATUS } from '../enums/conversation';
 import { ConversationActionPayload, ConversationState } from '../types/conversation';
 
 const initialState: ConversationState = {
-  loadStatus: 'idle',
+  loadStatus: LOAD_STATUS.IDLE,
   messages: [],
   reply: null,
 };

@@ -1,4 +1,5 @@
 import React from 'react';
+import { MESSAGE_AUTHOR } from '../../../../enums/conversation';
 import { MessageAuthorType } from '../../../../types/conversation';
 import { MessageComponentProps } from './messageTypes';
 import UserMessage from './UserMessage';
@@ -11,10 +12,10 @@ import SystemMessage from './SystemMessage';
  * registering a component here — the timeline stays untouched.
  */
 const messageRegistry: Record<MessageAuthorType, React.FC<MessageComponentProps>> = {
-  user: UserMessage,
-  ai: AIMessage,
-  human: HumanMessage,
-  system: SystemMessage,
+  [MESSAGE_AUTHOR.USER]: UserMessage,
+  [MESSAGE_AUTHOR.AI]: AIMessage,
+  [MESSAGE_AUTHOR.HUMAN]: HumanMessage,
+  [MESSAGE_AUTHOR.SYSTEM]: SystemMessage,
 };
 
 export const getMessageComponent = (

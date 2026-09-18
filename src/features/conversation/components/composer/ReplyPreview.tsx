@@ -3,7 +3,8 @@ import { Pressable, View } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { useAppContext } from '../../../../context/appContext';
 import Text from '../../../../common/ui/Text';
-import { ReplyContext } from '../../../../types/conversation';
+import { MESSAGE_AUTHOR } from '../../../../enums/conversation';
+import { MessageAuthorType, ReplyContext } from '../../../../types/conversation';
 import useStyles from './styles';
 
 type Props = {
@@ -11,11 +12,11 @@ type Props = {
   onClear: () => void;
 };
 
-const AUTHOR_NAME: Record<string, string> = {
-  user: 'You',
-  ai: 'AI Astrologer',
-  human: 'Astrologer',
-  system: 'System',
+const AUTHOR_NAME: Record<MessageAuthorType, string> = {
+  [MESSAGE_AUTHOR.USER]: 'You',
+  [MESSAGE_AUTHOR.AI]: 'AI Astrologer',
+  [MESSAGE_AUTHOR.HUMAN]: 'Astrologer',
+  [MESSAGE_AUTHOR.SYSTEM]: 'System',
 };
 
 /** Preview strip shown above the composer when replying to a message. */

@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppContext } from '../../../context/appContext';
 import { THEME_TYPE } from '../../../enums/common';
+import { LOAD_STATUS } from '../../../enums/conversation';
 import Text from '../../../common/ui/Text';
 import { ConversationController } from '../../../controllers/ConversationController';
 import { ConversationMessage, Recommendation } from '../../../types/conversation';
@@ -51,10 +52,10 @@ const ConversationScreen: React.FC = () => {
   };
 
   const renderBody = () => {
-    if (loadStatus === 'loading' || loadStatus === 'idle') {
+    if (loadStatus === LOAD_STATUS.LOADING || loadStatus === LOAD_STATUS.IDLE) {
       return <LoadingState />;
     }
-    if (loadStatus === 'error') {
+    if (loadStatus === LOAD_STATUS.ERROR) {
       return <ErrorState onRetry={() => ConversationController.retryLoad()} />;
     }
     if (!messages.length) {
@@ -72,7 +73,7 @@ const ConversationScreen: React.FC = () => {
     );
   };
 
-  const showComposer = loadStatus === 'ready';
+  const showComposer = loadStatus === LOAD_STATUS.READY;
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>

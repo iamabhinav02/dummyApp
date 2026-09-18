@@ -1,4 +1,5 @@
 import moment from 'moment';
+import { MESSAGE_AUTHOR, TIMELINE_ITEM_KIND } from '../../../../enums/conversation';
 import { ConversationMessage } from '../../../../types/conversation';
 
 /**
@@ -6,9 +7,9 @@ import { ConversationMessage } from '../../../../types/conversation';
  * grouping metadata. Precomputing this keeps the list's renderItem trivial.
  */
 export type TimelineItem =
-  | { kind: 'date'; id: string; label: string }
+  | { kind: TIMELINE_ITEM_KIND.DATE; id: string; label: string }
   | {
-      kind: 'message';
+      kind: TIMELINE_ITEM_KIND.MESSAGE;
       id: string;
       message: ConversationMessage;
       isGroupStart: boolean;
@@ -35,7 +36,7 @@ const areGroupable = (a?: ConversationMessage, b?: ConversationMessage): boolean
   }
   return (
     a.type === b.type &&
-    a.type !== 'system' &&
+    a.type !== MESSAGE_AUTHOR.SYSTEM &&
     moment(a.createdAt).isSame(b.createdAt, 'day') &&
     Math.abs(a.createdAt - b.createdAt) <= GROUP_WINDOW_MS
   );
@@ -57,11 +58,11 @@ export const buildTimeline = (messages: ConversationMessage[]): TimelineItem[] =
       !previous || !moment(previous.createdAt).isSame(message.createdAt, 'day');
 
     if (startsNewDay) {
-      items.push({ kind: 'date', id: `date-${message.id}`, label: dateLabel(message.createdAt) });
+      items.push({ kind: TIMELINE_ITEM_KIND.DATE, id: `date-${message.id}`, label: dateLabel(message.createdAt) });
     }
 
     items.push({
-      kind: 'message',
+      kind: TIMELINE_ITEM_KIND.MESSAGE,
       id: message.id,
       message,
       isGroupStart: startsNewDay || !areGroupable(previous, message),
