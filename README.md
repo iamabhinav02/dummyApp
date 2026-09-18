@@ -1,318 +1,146 @@
 # AI Astrologer — Composable Conversation Experience
 
-A React Native + TypeScript chat screen that renders **dynamic, extensible
-recommendation experiences** alongside a conversation timeline.
-
-The emphasis is architecture: a **normalized, offline-first store** where a
-reaction to one message re-renders only that message, new "conversation
-experiences" (recommendation / author types) plug in **by registration**, and
-persistence is **scoped per conversation** so the design scales past the single
-screen it ships with.
-
----
-
-## Data model
-
-The domain is fully normalized. Messages live in a hashMap keyed by
-`messageId`, with a separate array giving their order — so a message can change
-in place without disturbing the list. Types live in
-[`src/types/conversation.d.ts`](src/types/conversation.d.ts); value sets are
-enums in [`src/enums/conversation.ts`](src/enums/conversation.ts).
-
-```ts
-type Conversation = {
-  conversationId: string;
-  title?: string;
-  participantIds: string[];        // userIds
-  createdAt: number;
-  updatedAt?: number;
-};
-
-type User = {                      // one stable identity per participant type
-  userId: string;                  // SENDER_ID: 'system' | 'ai' | 'human' | 'local-user'
-  authorType: MessageAuthorType;   // 'user' | 'ai' | 'human' | 'system'
-  displayName: string;
-  icon?: string;
-};
-
-type Message = {
-  messageId: string;
-  conversationId: string;          // every message is scoped to a conversation
-  senderId: string;                // → resolves to a User in usersById
-  clientRequestId?: string;        // idempotency key for optimistic sends
-  type: MessageAuthorType;         // denormalized render hint (keeps grouping/registry simple)
-  text: string;
-  createdAt: number;
-  status?: MessageDeliveryStatus;  // 'sending' | 'sent' | 'failed' (optimistic user msgs)
-  reactions: Reaction[];           // like/dislike + comments, per user
-  recommendations: Recommendation[];
-  replyToMessageId?: string;       // resolved to a preview at render time
-};
-
-type Reaction = {
-  messageId: string;
-  userId: string;                  // who reacted
-  reactionType: ReactionType;      // 'like' | 'dislike' | … (open-ended)
-  comments: string[];              // e.g. the selected dislike reasons
-  createdAt: number;
-};
-
-type Recommendation = {
-  id: string;
-  type: RecommendationType;        // known enum OR any string (extensibility seam)
-  title: string;
-  subtitle?: string;
-  meta?: Record<string, unknown>;  // arbitrary payload for richer experiences
-};
-```
-
-### Redux state shape
-
-```ts
-type ConversationState = {
-  loadStatus: LOAD_STATUS;
-  usersById: Record<string, User>;
-  conversationsById: Record<string, Conversation>;
-  activeConversationId: string | null;
-  messagesById: Record<string, Message>;  // the hashMap
-  messageOrder: string[];                  // chronological queue of messageIds
-};
-```
-
-`messageOrder` is the single source of order; `messagesById` is the single
-source of message content. This split is what makes granular re-renders possible
-(see below).
-
----
-
-## High-level architecture
-
-Components never call the API or dispatch raw actions directly. All
-orchestration funnels through a singleton **controller**; the UI only
-**subscribes to the store**, which leaves room to add throttling/batching later
-without touching components.
-
-```
-                ┌─────────────────────────────────────────────┐
-                │                    UI (React)                 │
-                │  ConversationScreen                           │
-                │    • useSelector(loadStatus)                  │
-                │    • useSelector(messageOrder.length)         │
-                │  ConversationTimeline                         │
-                │    • useSelector(messageOrder) ──► FlashList  │
-                │  MessageRow  (one per id, React.memo)         │
-                │    • useSelector(messagesById[id]) ◄── self-  │
-                │      subscribes to ITS OWN message only       │
-                └───────────────┬──────────────▲───────────────┘
-                   calls methods │              │ subscribe (react-redux)
-                                 ▼              │
-                ┌─────────────────────────────────────────────┐
-                │           ConversationController              │
-                │  (singleton — the only place that mutates)    │
-                │  sendMessage · deliver · retry · delete       │
-                │  toggleReaction · toggleReason · hydrate      │
-                └──────┬───────────────┬───────────────┬───────┘
-                       │ dispatch      │ fetch/send    │ read/write
-                       ▼               ▼               ▼
-             ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐
-             │ Redux store  │  │ mock API     │  │ AsyncStorage     │
-             │ (normalized) │  │ (latency +   │  │ index + per-     │
-             │              │  │  failure)    │  │ conversation blob│
-             └──────────────┘  └──────────────┘  └──────────────────┘
-```
-
-- **Store**: plain `redux` (no RTK/reselect), one `conversationReducer` slice.
-  A [singleton bridge](src/store/commonStore.ts) lets the controller
-  `dispatch`/`getState` outside the React tree.
-- **Controller**: [`ConversationController`](src/controllers/ConversationController.ts)
-  owns API calls, optimistic updates, reactions and persistence.
-- **Persistence**: [`AsyncStorageController`](src/controllers/AsyncStorageController.ts)
-  with a write-through in-memory cache.
-- **Design system / theming**: UI is built from `src/common/ui` primitives that
-  read colors from `AppContext` (light/dark toggle in the header).
-
----
-
-## Re-rendering optimizations
-
-The goal: reacting to one message must **not** re-render the whole list. The
-decisions that get us there:
-
-1. **Normalized store (`messagesById` + `messageOrder`).** Message content and
-   message order are separate references.
-2. **In-place updates keep `messageOrder` identity.** `PATCH_MESSAGE`,
-   `ADD_REACTION` and `REMOVE_REACTION` return the **same** `messageOrder` array
-   reference and replace only the one changed entry in `messagesById`
-   ([`conversationReducer.ts`](src/reducers/conversationReducer.ts)). Anything
-   subscribed to `messageOrder` therefore bails out of re-render
-   (react-redux `===` check).
-3. **Rows self-subscribe by id.** [`MessageRow`](src/features/conversation/components/messages/MessageRow.tsx)
-   is `React.memo` and selects `messagesById[messageId]` — only the row whose
-   message changed re-renders.
-4. **Timeline skeleton memoized on `messageOrder` alone.** Date separators and
-   grouping read only immutable fields (`createdAt`, `type`), so the skeleton is
-   rebuilt only when messages are added/removed — never on a reaction
-   ([`timelineBuilder.ts`](src/features/conversation/components/timeline/timelineBuilder.ts),
-   [`ConversationTimeline.tsx`](src/features/conversation/components/timeline/ConversationTimeline.tsx)).
-5. **Primitive selectors for derived data.** Reply previews select the target's
-   `type`/`text` (primitives), so reacting to a replied-to message doesn't
-   re-render the replying row.
-6. **Narrow selectors + stable handlers.** The screen never selects the whole
-   slice; long-press/retry/reaction handlers are `useCallback`-stable so
-   memoized rows survive parent re-renders.
-7. **UI subscribes to the store, not to props.** A single choke point (redux)
-   means throttling/batching can be layered in later without component changes.
-
----
-
-## Data flow: API → UI
-
-Optimistic send, reconciled against the (mock) API:
-
-```
-Composer.onSend(text)
-  → ConversationController.sendMessage(text, replyToMessageId?)
-      • build optimistic Message { status: 'sending', clientRequestId, … }
-      • ADD_MESSAGE  ──► reducer: messagesById[+id], messageOrder:[…, id]
-      • deliver():
-          mockConversationApi.sendMessage(text, conversationId)
-            ├─ success → PATCH_MESSAGE(id, {status:'sent'})   (in place)
-            │            ADD_MESSAGE(aiReply)                 (new row)
-            │            persist(activeConversationId)
-            └─ failure → PATCH_MESSAGE(id, {status:'failed'}) → inline Retry
-```
-
-How a change reaches the screen:
-
-```
-reducer updates messagesById / messageOrder
-  → messageOrder changed?  yes → ConversationTimeline rebuilds skeleton → FlashList
-                           no  → only the affected MessageRow (its useSelector) re-renders
-  → renderItem picks a renderer via messageRegistry(message.type)
-      user → UserMessage · ai → AIMessage · human → HumanMessage · system → SystemMessage
-```
-
-Launch/hydrate: `App` calls `ConversationController.hydrate()`, which reads the
-persisted **index** (users + conversation records + active id), then lazy-loads
-the **active conversation's** messages; if nothing is stored it falls back to
-`loadInitial()` (seed via the mock API).
-
----
-
-## Recommendation strategy — extend by registration, not modification
-
-Each AI `Message` carries a `recommendations: Recommendation[]`. Presentation is
-driven by a **registry** that maps a recommendation `type` → a descriptor
-(icon, accent, CTA, optional custom body), with a **fallback** for unknown types
-and a **runtime registration** seam
-([`recommendationRegistry.tsx`](src/features/conversation/components/recommendations/recommendationRegistry.tsx)).
-
-- An AI message renders a horizontal `RecommendationCarousel`; each
-  `RecommendationCard` is themed entirely by its type descriptor.
-- **Unknown types fall back** to a generic card — so the client can render a
-  **future backend experience before its dedicated renderer ships**
-  (`RecommendationType` is `enum | (string & {})`).
-- A type can bring **richer UI** via a `renderBody` descriptor (see the `tarot`
-  example), without touching the carousel or timeline.
-- `registerRecommendation(type, descriptor)` adds an experience at runtime.
-
-The same pattern maps author `type` → bubble component in the
-[message registry](src/features/conversation/components/messages/messageRegistry.ts).
-
-| Registry | Maps | Add a new… | File |
-| --- | --- | --- | --- |
-| Recommendation | `type` → descriptor | recommendation experience | `recommendations/recommendationRegistry.tsx` |
-| Message | author `type` → bubble | message/author type | `messages/messageRegistry.ts` |
-
----
-
-## Optimistic like / dislike (reactions)
-
-Reactions supersede the old feedback model and are applied **optimistically** —
-the store updates synchronously so the UI reflects the tap with zero latency,
-then persists.
-
-- **Instant, local first.** `toggleReaction(messageId, reactionType)` dispatches
-  `ADD_REACTION` / `REMOVE_REACTION` immediately; the affected `MessageRow`
-  re-renders on its own, nothing else does.
-- **Like/dislike are mutually exclusive.** Setting 👍 clears 👎 (and vice
-  versa); tapping the active one toggles it off.
-- **Dislike reasons = comments.** Selecting 👎 expands reason chips (Inaccurate,
-  Too Generic, Didn't Help, Too Long); each is stored as a string in that
-  reaction's `comments[]` via `toggleReason`.
-- **Reactions are per-user.** [`FeedbackBar`](src/features/conversation/components/messages/FeedbackBar.tsx)
-  derives the viewer's state by filtering `message.reactions` on the local
-  `userId`, so the model already supports multiple reactors.
-- **Persisted.** Every toggle writes the active conversation's blob, so
-  reactions survive a relaunch.
-- **Backend-ready.** There is no server for reactions today, so the optimistic
-  write is authoritative. With a real API the same entry point would fire the
-  request after the optimistic dispatch and **roll back** (re-dispatch the
-  inverse) on failure — the store shape already supports it.
-
----
-
-## Persistence layout (scoped by conversation)
-
-```
-conversation:index                    → { usersById, conversationsById, activeConversationId }
-conversation:messages:<conversationId> → { messagesById, messageOrder }   (one per conversation)
-```
-
-`persist(conversationId?)` writes the small shared index plus **one**
-conversation's messages (defaulting to the active one), so a write to one
-conversation never rewrites another. `sending`/`failed` drafts are dropped from
-both the map and the order, so in-flight messages never rehydrate.
-
----
+A React Native + TypeScript chat screen that renders extensible recommendation
+experiences over a conversation timeline. The focus is architecture: a
+**normalized, offline-first store** where reacting to one message re-renders only
+that message, experiences that plug in **by registration**, and persistence
+**scoped per conversation** so it scales past the single screen it ships with.
 
 ## Project structure
 
+Feature-first: everything for the conversation lives under one folder; shared
+concerns sit at the top level.
+
 ```
 src/
-  types/conversation.d.ts             # domain model (open-ended by design)
-  enums/conversation.ts               # author, status, reaction, recommendation enums
-  data/seed.ts                        # normalized seed: users + conversation + messages
-  controllers/
-    ConversationController.ts         # singleton orchestrator (API, optimistic, reactions, persist)
-    AsyncStorageController.ts         # AsyncStorage + write-through cache
-    apis/mockConversationApi.ts       # simulated fetch/send (latency + failure flags)
-  reducers/                           # conversationReducer + action enums
-  store/                              # createStore + singleton bridge + rootReducers
-  features/conversation/
-    screens/ConversationScreen.tsx
-    components/
-      timeline/                       # FlashList timeline, skeleton builder, date separators
-      messages/                       # ChatBubble + per-author renderers + registry + FeedbackBar
-      recommendations/                # carousel + card + registry (the extensibility core)
-      composer/                       # composer + reply preview
-      actions/                        # long-press action sheet
-      states/                         # loading / empty / error
-  common/ui/                          # theme-aware design system (Text, Card, Button…)
-  context/appContext.tsx              # theme provider (light/dark)
-  navigation/ | constants/ | utils/
+  types/ enums/ data/seed.ts        # domain model, enums, normalized seed
+  controllers/                      # ConversationController, AsyncStorage, mock API
+  reducers/ store/                  # normalized redux slice + singleton store bridge
+  features/conversation/            # screen + timeline / messages / recommendations / composer / actions / states
+  common/ui/                        # design system (Text, Card, Button, Divider, BottomSheet, Chip…)
+  context/ navigation/ constants/ utils/
 ```
 
----
+## Component architecture
+
+- **Container vs. presentational.** The screen and the singleton controller hold
+  orchestration; components stay declarative. Components never call the API or
+  dispatch directly.
+- **Registry-driven renderers.** Author `type` → bubble component
+  ([`messageRegistry`](src/features/conversation/components/messages/messageRegistry.ts))
+  and recommendation `type` → card descriptor. New types plug in by registration;
+  the timeline never changes.
+- **Composition over props sprawl.** A shared `ChatBubble` handles alignment,
+  header, reply strip and "extras"; each author renderer supplies only its
+  differences.
+- **Atomic UI primitives.** Generic, domain-free pieces live in `common/ui`
+  (`Text`, `Card`, `Button`, `Divider`, `BottomSheet`, `Chip`); feature
+  components compose them.
+- **Self-subscribing rows.** Each [`MessageRow`](src/features/conversation/components/messages/MessageRow.tsx)
+  reads only its own message from the store (see Performance).
+
+## State management approach
+
+Plain `redux` (no RTK/reselect) with one normalized `conversationReducer` slice.
+Content and order are separate references, so a message can change in place
+without disturbing the list.
+
+```ts
+ConversationState {
+  loadStatus; usersById; conversationsById; activeConversationId;
+  messagesById: Record<id, Message>;   // content (the hashMap)
+  messageOrder: string[];              // order (the queue)
+}
+```
+
+- A [singleton bridge](src/store/commonStore.ts) lets the
+  [`ConversationController`](src/controllers/ConversationController.ts) dispatch
+  and read state outside the React tree — it is the only place that mutates
+  (send/deliver/retry/delete, reactions, hydrate, persist).
+- The UI only **subscribes** (via `useSelector`), which keeps a single choke
+  point where throttling/batching could be added later.
+- Full domain types (`Conversation`, `Message`, `Reaction`, `User`,
+  `Recommendation`) live in [`src/types/conversation.d.ts`](src/types/conversation.d.ts).
+
+## Recommendation rendering strategy
+
+Each AI message carries `recommendations[]`, rendered in a carousel. A
+[registry](src/features/conversation/components/recommendations/recommendationRegistry.tsx)
+maps a recommendation `type` → descriptor (icon, accent, CTA, optional custom
+`renderBody`), with:
+
+- a **fallback** descriptor for unknown types — so a future backend experience
+  renders before its dedicated renderer ships (`type` is `enum | (string & {})`);
+- a **runtime** `registerRecommendation(type, descriptor)` to add experiences
+  without editing the registry.
+
+## Performance considerations
+
+The goal: reacting to one message must not re-render the list.
+
+1. Normalized store — separate refs for content and order.
+2. `PATCH_MESSAGE`/`ADD_REACTION`/`REMOVE_REACTION` return the **same
+   `messageOrder` reference** and replace one entry, so list subscribers bail out
+   (react-redux `===`).
+3. Rows are `React.memo` and `useSelector(messagesById[id])` — only the changed
+   row re-renders.
+4. The timeline skeleton (date separators + grouping) is memoized on
+   `messageOrder` alone, since grouping reads only immutable fields.
+5. Reply previews use primitive selectors; the screen uses narrow selectors +
+   `useCallback` handlers; the list is virtualized with `@shopify/flash-list`.
+6. Persistence is **per conversation** (`conversation:messages:<id>` + a small
+   shared index), so a write to one conversation never rewrites another.
+
+## Trade-offs made due to time constraints
+
+- **No automated tests** — verification was type-check + lint + manual runs.
+- **Mock backend.** Sends simulate latency/failure; reactions have no server, so
+  optimistic writes are authoritative (the roll-back-on-failure path is described
+  but not wired).
+- **Single active conversation in memory.** Persistence is already per
+  conversation, but the store holds one active conversation's messages;
+  conversation switching (loading another blob into state) and any list UI aren't
+  built.
+- **Feedback folded into reactions** (like/dislike as reaction types, reasons as
+  `comments`) — pragmatic, slightly overloads the reaction concept.
+- **`moment` + relative date labels** — "Today"/"Yesterday" can go stale across midnight without a new dispatch.
+
+## Architectural trade-offs vs. a realtime chatbot
+
+This is built as a **client-authoritative, request/response** app. A realtime
+chatbot would reshape several seams:
+
+- **Transport.** `fetchConversation`/`sendMessage` are one-shot calls. Realtime
+  needs a persistent WebSocket/SSE connection with reconnect/backoff, an outbound
+  offline queue, and connection-state UI.
+- **Streaming replies.** The AI reply lands as one whole `ADD_MESSAGE`. A chatbot
+  streams tokens — you'd append deltas via frequent `PATCH_MESSAGE`, which makes
+  the per-message granular re-render (and the "subscribe-only" seam for
+  throttling token bursts) load-bearing rather than a nicety.
+- **Source of truth.** Here optimistic writes are final. Realtime is
+  server-authoritative: the optimistic send must reconcile against the server's
+  echo by `clientRequestId` and roll back on failure (the id exists; the path
+  isn't wired).
+- **Ordering & dedup.** A single client appends in insertion order. Realtime
+  needs server sequence numbers/timestamps to order across senders and to dedup
+  on reconnect — `messageOrder` would be derived from server order, not append
+  order.
+- **Presence & receipts.** No typing indicators, presence, read receipts, or
+  delivery acks — all push-driven state a realtime app must model and merge.
+- **History & sync scale.** The whole conversation sits in memory and one
+  AsyncStorage blob per conversation. Realtime needs paginated/windowed history
+  with cursors, incremental sync, eviction, and multi-device convergence
+  (last-write-wins / CRDT for reactions) instead of local-only persistence.
 
 ## Simulating states
 
-[`controllers/apis/mockConversationApi.ts`](src/controllers/apis/mockConversationApi.ts):
-
-- `SIMULATE_INITIAL_LOAD_FAILURE` — set `true` to exercise the error/retry state.
-- `SEND_FAILURE_RATE` — probability a sent message fails (default `0.25`), drives
-  the Failed/Retry flow.
+In [`mockConversationApi.ts`](src/controllers/apis/mockConversationApi.ts):
+`SIMULATE_INITIAL_LOAD_FAILURE` (error/retry) and `SEND_FAILURE_RATE` (default `0.25`).
 
 ## Run
 
 ```sh
 npm start
-```
-
-```sh
 npm run ios
-```
-
-```sh
 npm run android
 ```
